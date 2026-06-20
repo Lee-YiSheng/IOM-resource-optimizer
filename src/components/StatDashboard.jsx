@@ -12,6 +12,7 @@ export function StatDashboard({
   const [showOtherPerks, setShowOtherPerks] = useState(false);
   const [showDroneRelic, setShowDroneRelic] = useState(false);
   const [optTarget, setOptTarget] = useState('regular');
+  const [hideLocked, setHideLocked] = useState(false);
 
   // Format Helper
   const formatNum = (num) => {
@@ -45,7 +46,7 @@ export function StatDashboard({
         <h2 className="dashboard-section-title">Best Upgrades</h2>
         
         {/* Toggle Target */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
           <button
             type="button"
             className={`tab-btn ${optTarget === 'regular' ? 'active' : ''}`}
@@ -64,97 +65,136 @@ export function StatDashboard({
           </button>
         </div>
 
-        {/* Stars Recommendations */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
-            Best Stars upgrades
-          </div>
-          {(() => {
-            const isRegular = optTarget === 'regular';
-            const sortedStars = [...(recommendations?.starRecs || [])]
-              .sort((a, b) => isRegular ? b.deltaReg - a.deltaReg : b.deltaSuper - a.deltaSuper)
-              .filter(r => isRegular ? r.deltaReg > 0.0001 : r.deltaSuper > 0.0001)
-              .slice(0, 3);
-
-            if (sortedStars.length > 0) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {sortedStars.map(rec => (
-                    <button 
-                      key={rec.id} 
-                      type="button"
-                      className="suggestion-btn" 
-                      onClick={() => onUpgradeStar(rec.id, rec.nextLevel)}
-                      title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
-                    >
-                      <div>
-                        <span style={{ color: 'var(--color-text-primary)', fontWeight: '500' }}>
-                          {!rec.unlocked && <span style={{ marginRight: '4px' }}>🔒</span>}
-                          {rec.name}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
-                          ({rec.currentLevel}→{rec.nextLevel})
-                        </span>
-                      </div>
-                      <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)' }}>
-                        +{formatNum(isRegular ? rec.deltaReg : rec.deltaSuper)}/hr
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              );
-            }
-            return (
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                No active upgrades improve this stat.
-              </div>
-            );
-          })()}
+        {/* Hide Locked Stars Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+          <input 
+            type="checkbox"
+            id="hide-locked-stars-rec"
+            className="star-checkbox"
+            checked={hideLocked}
+            onChange={(e) => setHideLocked(e.target.checked)}
+          />
+          <label htmlFor="hide-locked-stars-rec" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+            Hide Locked Stars
+          </label>
         </div>
 
-        {/* Shop Upgrades Recommendations */}
-        <div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
-            Best Shop upgrades
-          </div>
-          {(() => {
-            const isRegular = optTarget === 'regular';
-            const sortedUpgrades = [...(recommendations?.upgradeRecs || [])]
-              .sort((a, b) => isRegular ? b.deltaReg - a.deltaReg : b.deltaSuper - a.deltaSuper)
-              .filter(r => isRegular ? r.deltaReg > 0.0001 : r.deltaSuper > 0.0001)
-              .slice(0, 3);
+        {/* Side-by-side Columns */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {/* Stars Column */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
+              Best Stars (Top 5)
+            </div>
+            {(() => {
+              const isRegular = optTarget === 'regular';
+              const sortedStars = [...(recommendations?.starRecs || [])]
+                .filter(r => !hideLocked || r.unlocked)
+                .sort((a, b) => isRegular ? b.deltaReg - a.deltaReg : b.deltaSuper - a.deltaSuper)
+                .filter(r => isRegular ? r.deltaReg > 0.0001 : r.deltaSuper > 0.0001)
+                .slice(0, 5);
 
-            if (sortedUpgrades.length > 0) {
+              if (sortedStars.length > 0) {
+                const currentYield = isRegular ? stats.regularStarYieldPerHour : stats.superStarYieldPerHour;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {sortedStars.map(rec => {
+                      const delta = isRegular ? rec.deltaReg : rec.deltaSuper;
+                      const pct = currentYield > 0 ? (delta / currentYield) * 100 : 0;
+                      return (
+                        <button 
+                          key={rec.id} 
+                          type="button"
+                          className="suggestion-btn" 
+                          onClick={() => onUpgradeStar(rec.id, rec.nextLevel)}
+                          title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
+                          style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', padding: '6px 8px' }}
+                        >
+                          <div style={{ width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ color: 'var(--color-text-primary)', fontWeight: '500', fontSize: '0.75rem' }}>
+                              {!rec.unlocked && <span style={{ marginRight: '2px' }}>🔒</span>}
+                              {rec.name}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', marginLeft: '2px' }}>
+                              ({rec.currentLevel}→{rec.nextLevel})
+                            </span>
+                          </div>
+                          <span className="cost-badge" style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
+                            {rec.cost} shards
+                          </span>
+                          <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                            +{formatNum(delta)} ({pct.toFixed(1)}%)
+                          </span>
+                          <span className="time-to-upgrade" style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
+                            {rec.timeToUpgrade}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
               return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {sortedUpgrades.map(rec => (
-                    <button 
-                      key={rec.id} 
-                      type="button"
-                      className="suggestion-btn" 
-                      onClick={() => onUpgradeShop(rec.id, rec.nextLevel)}
-                      title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
-                    >
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '170px' }}>
-                        <span style={{ color: 'var(--color-text-primary)', fontWeight: '500' }}>{rec.name}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
-                          ({rec.currentLevel}→{rec.nextLevel})
-                        </span>
-                      </div>
-                      <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)' }}>
-                        +{formatNum(isRegular ? rec.deltaReg : rec.deltaSuper)}/hr
-                      </span>
-                    </button>
-                  ))}
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  No active upgrades.
                 </div>
               );
-            }
-            return (
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                No active upgrades improve this stat.
-              </div>
-            );
-          })()}
+            })()}
+          </div>
+
+          {/* Shop Column */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '6px', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
+              Best Shop (Top 5)
+            </div>
+            {(() => {
+              const isRegular = optTarget === 'regular';
+              const sortedUpgrades = [...(recommendations?.upgradeRecs || [])]
+                .sort((a, b) => isRegular ? b.deltaReg - a.deltaReg : b.deltaSuper - a.deltaSuper)
+                .filter(r => isRegular ? r.deltaReg > 0.0001 : r.deltaSuper > 0.0001)
+                .slice(0, 5);
+
+              if (sortedUpgrades.length > 0) {
+                const currentYield = isRegular ? stats.regularStarYieldPerHour : stats.superStarYieldPerHour;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {sortedUpgrades.map(rec => {
+                      const delta = isRegular ? rec.deltaReg : rec.deltaSuper;
+                      const pct = currentYield > 0 ? (delta / currentYield) * 100 : 0;
+                      return (
+                        <button 
+                          key={rec.id} 
+                          type="button"
+                          className="suggestion-btn" 
+                          onClick={() => onUpgradeShop(rec.id, rec.nextLevel)}
+                          title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
+                          style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', padding: '6px 8px' }}
+                        >
+                          <div style={{ width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <span style={{ color: 'var(--color-text-primary)', fontWeight: '500', fontSize: '0.75rem' }}>{rec.name}</span>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', marginLeft: '2px' }}>
+                              ({rec.currentLevel}→{rec.nextLevel})
+                            </span>
+                          </div>
+                          <span className="cost-badge" style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
+                            {rec.cost} {rec.vein}
+                          </span>
+                          <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
+                            +{formatNum(delta)} ({pct.toFixed(1)}%)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              return (
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                  No active upgrades.
+                </div>
+              );
+            })()}
+          </div>
         </div>
       </div>
 
@@ -176,6 +216,15 @@ export function StatDashboard({
             className="star-checkbox"
             checked={!!globalStats.superStarSpawnBuff3x}
             onChange={(e) => setGlobalStat('superStarSpawnBuff3x', e.target.checked)}
+          />
+        </div>
+        <div className="stat-row" style={{ padding: '4px 0' }}>
+          <span className="stat-label">Drone Fueled (100% Catch):</span>
+          <input 
+            type="checkbox" 
+            className="star-checkbox"
+            checked={!!globalStats.droneFueled}
+            onChange={(e) => setGlobalStat('droneFueled', e.target.checked)}
           />
         </div>
         <div className="stat-row" style={{ padding: '4px 0' }}>
@@ -498,17 +547,6 @@ export function StatDashboard({
               <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600', display: 'block', marginBottom: '8px' }}>
                 Starburst Drone
               </span>
-
-              {/* Fueled Checkbox */}
-              <div className="stat-row" style={{ padding: '4px 0' }}>
-                <span className="stat-label">Fueled:</span>
-                <input 
-                  type="checkbox" 
-                  className="star-checkbox"
-                  checked={!!globalStats.droneFueled}
-                  onChange={(e) => setGlobalStat('droneFueled', e.target.checked)}
-                />
-              </div>
 
               {/* Drone Grade */}
               <div className="config-group" style={{ opacity: globalStats.droneFueled ? 1.0 : 0.4, transition: 'opacity var(--transition-fast)' }}>

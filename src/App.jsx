@@ -229,14 +229,24 @@ function App() {
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'stars' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stars')}
+            onClick={() => {
+              setActiveTab('stars');
+              setTimeout(() => {
+                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
           >
             ✨ Constellation Stars
           </button>
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'upgrades' ? 'active' : ''}`}
-            onClick={() => setActiveTab('upgrades')}
+            onClick={() => {
+              setActiveTab('upgrades');
+              setTimeout(() => {
+                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
           >
             ⚙️ Upgrades Tab
           </button>
@@ -290,7 +300,7 @@ function App() {
         />
 
         {/* Right Active configuration view */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div id="tab-content-area" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {activeTab === 'stars' ? (
             <StarList 
               stars={STARS}

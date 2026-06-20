@@ -3,7 +3,8 @@
  * 
  * Computes all cumulative perks, upgrade levels, and final star yield rates.
  */
-
+import { getStarCost } from "../data/starCosts.js";
+import { getUpgradeCost } from "../data/upgradeCosts.js";
 export function calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats }) {
   // 1. Helper to get levels safely
   const getStarLvl = (id) => starLevels[id] || 0;
@@ -67,7 +68,7 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const autoCatchPerk = getStarLvl("taurus") * 0.02;
   const autoCatchUpgrade = getUpgradeLvl("autoCatchStars") * 0.04;
   const totalAutoCatchChance = Math.min(1.0, autoCatchPerk + autoCatchUpgrade);
-  const totalCatchRate = totalAutoCatchChance + (1.0 - totalAutoCatchChance) * manualCatchRate;
+  const totalCatchRate = droneFueled ? 1.0 : (totalAutoCatchChance + (1.0 - totalAutoCatchChance) * manualCatchRate);
 
   // 6. Expected Multi-Spawns
   // Regular Stars: Double and Triple (including Drone level addend)
@@ -212,9 +213,20 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
   const current = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats });
   const currentReg = current.regularStarYieldPerHour;
   const currentSuper = current.superStarYieldPerHour;
+  const currentTotal = currentReg + currentSuper;
 
   const starRecs = [];
   const upgradeRecs = [];
+
+  // Helper to compute time to upgrade using current effective yield (regular stars only)
+  const computeTime = (cost, yieldPerHour) => {
+    if (yieldPerHour <= 0) return "N/A";
+    const hours = cost / yieldPerHour;
+    const minutes = Math.ceil(hours * 60);
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h} h ${m} m`;
+  };
 
   // Simulate Star upgrades (+1 level)
   stars.forEach(star => {
@@ -225,6 +237,9 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
       const simulated = calculateStats({ starLevels: tempLevels, starUnlocked, upgradeLevels, globalStats });
       const deltaReg = simulated.regularStarYieldPerHour - currentReg;
       const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
+      const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
+      const cost = getStarCost(star.id, currentLvl + 1);
+      const timeToUpgrade = computeTime(cost, currentReg);
       starRecs.push({
         id: star.id,
         name: star.name,
@@ -232,7 +247,10 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
         nextLevel: currentLvl + 1,
         deltaReg,
         deltaSuper,
-        unlocked: !!starUnlocked[star.id]
+        deltaTotal,
+        unlocked: !!starUnlocked[star.id],
+        cost,
+        timeToUpgrade
       });
     }
   });
@@ -253,13 +271,19 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
       const simulated = calculateStats({ starLevels, starUnlocked, upgradeLevels: tempUpgrades, globalStats });
       const deltaReg = simulated.regularStarYieldPerHour - currentReg;
       const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
+      const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
+      const cost = getUpgradeCost(upgrade.id, currentLvl + 1);
+      const timeToUpgrade = computeTime(cost, currentReg);
       upgradeRecs.push({
         id: upgrade.id,
         name: upgrade.name,
         currentLevel: currentLvl,
         nextLevel: currentLvl + 1,
         deltaReg,
-        deltaSuper
+        deltaSuper,
+        deltaTotal,
+        cost,
+        timeToUpgrade
       });
     }
   });
