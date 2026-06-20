@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Fonts */
+  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Space Grotesk', ui-monospace, Courier, monospace;
+
+  /* Theme Palette - Obsidian Stargazing Space Theme */
+  --bg-deep: hsl(230, 24%, 6%);
+  --bg-card: hsla(228, 20%, 10%, 0.75);
+  --bg-input: hsla(228, 22%, 14%, 0.85);
+  --bg-header: hsla(230, 24%, 4%, 0.85);
+  
+  --border-light: hsla(228, 15%, 20%, 0.6);
+  --border-glow: hsla(260, 80%, 70%, 0.2);
+  --border-focus: hsla(260, 90%, 75%, 0.7);
+
+  /* Colors */
+  --color-star: hsl(45, 100%, 60%);
+  --color-star-glow: hsla(45, 100%, 60%, 0.25);
+  --color-superstar: hsl(280, 95%, 70%);
+  --color-superstar-glow: hsla(280, 95%, 70%, 0.25);
+  
+  --color-text-primary: hsl(220, 25%, 92%);
+  --color-text-secondary: hsl(220, 15%, 70%);
+  --color-text-muted: hsl(220, 10%, 50%);
+  
+  --color-accent-violet: hsl(265, 85%, 65%);
+  --color-accent-teal: hsl(175, 80%, 55%);
+  --color-accent-blue: hsl(205, 90%, 60%);
+  --color-accent-emerald: hsl(145, 75%, 50%);
+  
+  /* Shadow & Blur */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 24px hsla(260, 80%, 70%, 0.1);
+  --blur-card: blur(16px);
+  
+  /* Layout sizes */
+  --sidebar-width: 380px;
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  --transition-slow: 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Base resets & structural styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-deep);
+  color: var(--color-text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+  background-image: 
+    radial-gradient(at 10% 20%, hsla(260, 80%, 50%, 0.08) 0px, transparent 50%),
+    radial-gradient(at 90% 80%, hsla(205, 90%, 50%, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, hsla(280, 95%, 60%, 0.04) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-violet);
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: var(--blur-card);
+  -webkit-backdrop-filter: var(--blur-card);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.glass-panel:hover {
+  border-color: var(--border-glow);
+  box-shadow: var(--shadow-lg);
+}
+
+.glass-card {
+  background: hsla(228, 20%, 8%, 0.4);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all var(--transition-normal);
+}
+
+.glass-card:hover {
+  background: hsla(228, 20%, 8%, 0.6);
+  border-color: var(--color-accent-violet);
+  transform: translateY(-2px);
+}

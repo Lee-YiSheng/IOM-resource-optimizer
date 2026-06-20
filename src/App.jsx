@@ -1,0 +1,316 @@
+import { useState, useEffect } from 'react';
+import { STARS } from './data/stars';
+import { UPGRADES } from './data/upgrades';
+import { calculateStats, getRecommendations } from './engine/calculator';
+import { StarList } from './components/StarList';
+import { UpgradeList } from './components/UpgradeList';
+import { StatDashboard } from './components/StatDashboard';
+
+// Helper to load state from localStorage or use defaults
+const getInitialState = (key, defaults) => {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return defaults;
+    const parsed = JSON.parse(saved);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { ...defaults, ...parsed };
+    }
+    return parsed;
+  } catch {
+    return defaults;
+  }
+};
+
+function App() {
+  const [activeTab, setActiveTab] = useState('stars');
+
+  // Star Unlock Checklist State (Default first few unlocked to show usage)
+  const defaultUnlocks = STARS.reduce((acc, star) => {
+    // Let's unlock a few stars initially
+    acc[star.id] = ['aries', 'taurus', 'gemini', 'cancer'].includes(star.id);
+    return acc;
+  }, {});
+  const [starUnlocked, setStarUnlocked] = useState(() => 
+    getInitialState('iom_star_unlocked', defaultUnlocks)
+  );
+
+  // Star Levels State
+  const defaultStarLevels = STARS.reduce((acc, star) => {
+    acc[star.id] = 0;
+    return acc;
+  }, {});
+  const [starLevels, setStarLevels] = useState(() => 
+    getInitialState('iom_star_levels', defaultStarLevels)
+  );
+
+  // Upgrades Levels State
+  const defaultUpgradeLevels = UPGRADES.reduce((acc, upgrade) => {
+    acc[upgrade.id] = 0;
+    return acc;
+  }, {});
+  const [upgradeLevels, setUpgradeLevels] = useState(() => 
+    getInitialState('iom_upgrade_levels', defaultUpgradeLevels)
+  );
+
+  // Global Config Stats State
+  const defaultGlobalStats = {
+    gameSpeed: 1.0,
+    cardMultiplier: 1.0,
+    manualCatchRate: 1.0,
+    starUpgradeCapBonus: 0,
+    starSupernovaMultiplier: 0.0,
+    superStarSupernovaMultiplier: 0.0,
+    starSupergiantMultiplier: 0.0,
+    superStarSupergiantMultiplier: 0.0,
+    starRadiantChance: 0.0,
+    starRadiantMultiplier: 0.0,
+    superStarRadiantMultiplier: 0.0,
+    superStarSupernovaChance: 0.0,
+    novagiantComboMultiplier: 1.0,
+    droneFueled: false,
+    droneGrade: 0,
+    droneLevelActive: false,
+    droneLevel: 0,
+    relicLevel: 0,
+    starSpawnBuff2x: false,
+    superStarSpawnBuff3x: false,
+    primalMeatActive: false,
+    athenaIdolLevel: 0,
+    contractLevel: 0,
+    ctrlFUnlocked: false,
+  };
+  const [globalStats, setGlobalStats] = useState(() => 
+    getInitialState('iom_global_stats', defaultGlobalStats)
+  );
+
+  // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('iom_star_unlocked', JSON.stringify(starUnlocked));
+  }, [starUnlocked]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_star_levels', JSON.stringify(starLevels));
+  }, [starLevels]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_upgrade_levels', JSON.stringify(upgradeLevels));
+  }, [upgradeLevels]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_global_stats', JSON.stringify(globalStats));
+  }, [globalStats]);
+
+  // Setters
+  const handleSetStarLevel = (id, lvl) => {
+    const star = STARS.find(s => s.id === id);
+    const maxVal = star.maxLevel + globalStats.starUpgradeCapBonus;
+    const bounded = Math.max(0, Math.min(maxVal, lvl));
+    setStarLevels(prev => ({ ...prev, [id]: bounded }));
+  };
+
+  const handleToggleStarUnlock = (id) => {
+    setStarUnlocked(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleSetUpgradeLevel = (id, lvl) => {
+    const upgrade = UPGRADES.find(u => u.id === id);
+    const capperUpperLvl = upgradeLevels.capperUpper || 0;
+    const maxVal = upgrade.affectedByCapperUpper 
+      ? upgrade.maxLevel + (capperUpperLvl * 5) 
+      : upgrade.maxLevel;
+    const bounded = Math.max(0, Math.min(maxVal, lvl));
+    setUpgradeLevels(prev => ({ ...prev, [id]: bounded }));
+  };
+
+  const handleSetGlobalStat = (key, val) => {
+    setGlobalStats(prev => ({ ...prev, [key]: val }));
+  };
+
+  const handleReset = () => {
+    if (window.confirm("Are you sure you want to reset all levels and stats?")) {
+      setStarUnlocked(defaultUnlocks);
+      setStarLevels(defaultStarLevels);
+      setUpgradeLevels(defaultUpgradeLevels);
+      setGlobalStats(defaultGlobalStats);
+    }
+  };
+
+  const handleExportSetup = () => {
+    const exportData = {
+      starUnlocked,
+      starLevels,
+      upgradeLevels,
+      globalStats,
+      exportedAt: new Date().toISOString(),
+      version: "1.0.0"
+    };
+    
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+      JSON.stringify(exportData, null, 2)
+    )}`;
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", jsonString);
+    downloadAnchor.setAttribute("download", "iom_stargazing_optimizer_setup.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleImportSetup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target.result);
+        if (!parsed || typeof parsed !== 'object') {
+          alert("Invalid file format. Please upload a valid exported setup JSON.");
+          return;
+        }
+
+        if (!parsed.starUnlocked && !parsed.starLevels && !parsed.upgradeLevels && !parsed.globalStats) {
+          alert("Invalid file structure. This does not appear to be a Stargazing Optimizer setup file.");
+          return;
+        }
+
+        if (parsed.starUnlocked) {
+          setStarUnlocked(prev => ({ ...prev, ...parsed.starUnlocked }));
+        }
+        if (parsed.starLevels) {
+          setStarLevels(prev => ({ ...prev, ...parsed.starLevels }));
+        }
+        if (parsed.upgradeLevels) {
+          setUpgradeLevels(prev => ({ ...prev, ...parsed.upgradeLevels }));
+        }
+        if (parsed.globalStats) {
+          setGlobalStats(prev => ({ ...prev, ...parsed.globalStats }));
+        }
+        
+        alert("Setup imported successfully!");
+      } catch (err) {
+        alert("Failed to parse JSON file: " + err.message);
+      }
+    };
+    
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  // Perform Calculations
+  const calculatedStats = calculateStats({
+    starLevels,
+    starUnlocked,
+    upgradeLevels,
+    globalStats
+  });
+
+  const recommendations = getRecommendations({
+    starLevels,
+    starUnlocked,
+    upgradeLevels,
+    globalStats,
+    stars: STARS,
+    upgrades: UPGRADES
+  });
+
+  return (
+    <>
+      <header className="app-header">
+        <div className="logo-section">
+          <div className="logo-icon">🔭</div>
+          <div>
+            <h1>Obelisk Miner</h1>
+            <span className="logo-subtitle">Stargazing Optimizer</span>
+          </div>
+        </div>
+
+        <nav className="tabs-nav">
+          <button 
+            type="button"
+            className={`tab-btn ${activeTab === 'stars' ? 'active' : ''}`}
+            onClick={() => setActiveTab('stars')}
+          >
+            ✨ Constellation Stars
+          </button>
+          <button 
+            type="button"
+            className={`tab-btn ${activeTab === 'upgrades' ? 'active' : ''}`}
+            onClick={() => setActiveTab('upgrades')}
+          >
+            ⚙️ Upgrades Tab
+          </button>
+
+          <input 
+            type="file"
+            id="import-setup-file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={handleImportSetup}
+          />
+          
+          <button
+            type="button"
+            className="tab-btn"
+            style={{ borderColor: 'hsla(150, 60%, 50%, 0.3)', color: 'hsl(150, 70%, 70%)' }}
+            onClick={() => document.getElementById('import-setup-file')?.click()}
+          >
+            📥 Import
+          </button>
+
+          <button
+            type="button"
+            className="tab-btn"
+            style={{ borderColor: 'hsla(210, 60%, 50%, 0.3)', color: 'hsl(210, 70%, 70%)' }}
+            onClick={handleExportSetup}
+          >
+            📤 Export
+          </button>
+          
+          <button 
+            type="button"
+            className="tab-btn"
+            style={{ borderColor: 'hsla(0, 80%, 60%, 0.3)', color: 'hsl(0, 80%, 70%)' }}
+            onClick={handleReset}
+          >
+            Reset All
+          </button>
+        </nav>
+      </header>
+
+      <main className="app-container">
+        {/* Left persistent stats summary & settings dashboard */}
+        <StatDashboard 
+          stats={calculatedStats}
+          globalStats={globalStats}
+          setGlobalStat={handleSetGlobalStat}
+          recommendations={recommendations}
+          onUpgradeStar={handleSetStarLevel}
+          onUpgradeShop={handleSetUpgradeLevel}
+        />
+
+        {/* Right Active configuration view */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {activeTab === 'stars' ? (
+            <StarList 
+              stars={STARS}
+              starLevels={starLevels}
+              starUnlocked={starUnlocked}
+              setStarLevel={handleSetStarLevel}
+              toggleStarUnlock={handleToggleStarUnlock}
+              starUpgradeCapBonus={globalStats.starUpgradeCapBonus}
+            />
+          ) : (
+            <UpgradeList 
+              upgrades={UPGRADES}
+              upgradeLevels={upgradeLevels}
+              setUpgradeLevel={handleSetUpgradeLevel}
+            />
+          )}
+        </div>
+      </main>
+    </>
+  );
+}
+
+export default App;
