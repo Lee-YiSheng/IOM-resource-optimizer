@@ -6,7 +6,8 @@ export function StatDashboard({
   setGlobalStat, 
   recommendations,
   onUpgradeStar,
-  onUpgradeShop
+  onUpgradeShop,
+  veinStats
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showOtherPerks, setShowOtherPerks] = useState(false);
@@ -161,6 +162,16 @@ export function StatDashboard({
                     {sortedUpgrades.map(rec => {
                       const delta = isRegular ? rec.deltaReg : rec.deltaSuper;
                       const pct = currentYield > 0 ? (delta / currentYield) * 100 : 0;
+                      // Compute time-to-upgrade using vein income
+                      const veinIncomeHr = rec.vein && veinStats?.incomeByVeinNameFullTime?.[rec.vein] || 0;
+                      let veinTime = 'N/A';
+                      if (veinIncomeHr > 0 && rec.cost > 0) {
+                        const hrs = rec.cost / veinIncomeHr;
+                        const mins = Math.ceil(hrs * 60);
+                        const h = Math.floor(mins / 60);
+                        const m = mins % 60;
+                        veinTime = `${h} h ${m} m`;
+                      }
                       return (
                         <button 
                           key={rec.id} 
@@ -177,8 +188,13 @@ export function StatDashboard({
                             </span>
                           </div>
                           <span className="cost-badge" style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
-                            {rec.cost} {rec.vein}
+                            {formatNum(rec.cost)} {rec.vein}
                           </span>
+                          {veinTime !== 'N/A' && (
+                            <span className="time-to-upgrade" style={{ fontSize: '0.55rem', color: 'var(--color-accent-emerald)', marginLeft: '4px' }}>
+                              ⏱ {veinTime}
+                            </span>
+                          )}
                           <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
                             +{formatNum(delta)} ({pct.toFixed(1)}%)
                           </span>

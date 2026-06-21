@@ -4,7 +4,7 @@
  * Computes all cumulative perks, upgrade levels, and final star yield rates.
  */
 import { getStarCost } from "../data/starCosts.js";
-import { getUpgradeCost } from "../data/upgradeCosts.js";
+import { getUpgradeCost, getUpgradeVein, upgradeCosts } from "../data/upgradeCosts.js";
 export function calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats }) {
   // 1. Helper to get levels safely
   const getStarLvl = (id) => starLevels[id] || 0;
@@ -273,6 +273,7 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
       const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
       const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
       const cost = getUpgradeCost(upgrade.id, currentLvl + 1);
+      const veinType = getUpgradeVein(upgrade.id, currentLvl + 1);
       const timeToUpgrade = computeTime(cost, currentReg);
       upgradeRecs.push({
         id: upgrade.id,
@@ -283,6 +284,7 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
         deltaSuper,
         deltaTotal,
         cost,
+        vein: veinType,
         timeToUpgrade
       });
     }

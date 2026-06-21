@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { STARS } from './data/stars';
 import { UPGRADES } from './data/upgrades';
 import { calculateStats, getRecommendations } from './engine/calculator';
+import { calculateVeinIncome } from './engine/veinCalculator';
 import { StarList } from './components/StarList';
 import { UpgradeList } from './components/UpgradeList';
 import { StatDashboard } from './components/StatDashboard';
+import { VeinCalculator } from './components/VeinCalculator';
 
 // Helper to load state from localStorage or use defaults
 const getInitialState = (key, defaults) => {
@@ -83,6 +85,28 @@ function App() {
     getInitialState('iom_global_stats', defaultGlobalStats)
   );
 
+  // Vein Config State
+  const defaultVeinConfig = {
+    veinSpawnRateMulti: 1.0,
+    veinIncomeMulti: 1.0,
+    goldenVeinChance: 0,
+    goldenVeinMulti: 1.0,
+    rainbowVeinChance: 0,
+    rainbowVeinMulti: 1.0,
+    gleamingVeinChance: 0,
+    gleamingVeinMulti: 1.0,
+    veinResearch2x: false,
+    oresPerFloor: 10,
+    veinDroneFueled: false,
+    veinDroneLevel: 0,
+    veinDroneGrade: 0,
+    veinmorpherBomb: false,
+    veinCardMultiplier: 1.5,
+  };
+  const [veinConfig, setVeinConfig] = useState(() =>
+    getInitialState('iom_vein_config', defaultVeinConfig)
+  );
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('iom_star_unlocked', JSON.stringify(starUnlocked));
@@ -99,6 +123,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('iom_global_stats', JSON.stringify(globalStats));
   }, [globalStats]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_vein_config', JSON.stringify(veinConfig));
+  }, [veinConfig]);
 
   // Setters
   const handleSetStarLevel = (id, lvl) => {
@@ -132,6 +160,7 @@ function App() {
       setStarLevels(defaultStarLevels);
       setUpgradeLevels(defaultUpgradeLevels);
       setGlobalStats(defaultGlobalStats);
+      setVeinConfig(defaultVeinConfig);
     }
   };
 
@@ -141,8 +170,9 @@ function App() {
       starLevels,
       upgradeLevels,
       globalStats,
+      veinConfig,
       exportedAt: new Date().toISOString(),
-      version: "1.0.0"
+      version: "1.1.0"
     };
     
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -186,6 +216,9 @@ function App() {
         if (parsed.globalStats) {
           setGlobalStats(prev => ({ ...prev, ...parsed.globalStats }));
         }
+        if (parsed.veinConfig) {
+          setVeinConfig(prev => ({ ...prev, ...parsed.veinConfig }));
+        }
         
         alert("Setup imported successfully!");
       } catch (err) {
@@ -213,6 +246,15 @@ function App() {
     stars: STARS,
     upgrades: UPGRADES
   });
+
+  // Vein income calculations (memoized)
+  const veinStats = useMemo(() => {
+    return calculateVeinIncome({
+      ...veinConfig,
+      floorsPerHour: calculatedStats.floorsPerHour,
+      cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+    });
+  }, [veinConfig, calculatedStats.floorsPerHour]);
 
   return (
     <>
@@ -249,6 +291,18 @@ function App() {
             }}
           >
             ⚙️ Upgrades Tab
+          </button>
+          <button 
+            type="button"
+            className={`tab-btn ${activeTab === 'veins' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('veins');
+              setTimeout(() => {
+                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+          >
+            ⛏️ Vein Calculator
           </button>
 
           <input 
@@ -297,11 +351,12 @@ function App() {
           recommendations={recommendations}
           onUpgradeStar={handleSetStarLevel}
           onUpgradeShop={handleSetUpgradeLevel}
+          veinStats={veinStats}
         />
 
         {/* Right Active configuration view */}
         <div id="tab-content-area" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {activeTab === 'stars' ? (
+          {activeTab === 'stars' && (
             <StarList 
               stars={STARS}
               starLevels={starLevels}
@@ -310,11 +365,19 @@ function App() {
               toggleStarUnlock={handleToggleStarUnlock}
               starUpgradeCapBonus={globalStats.starUpgradeCapBonus}
             />
-          ) : (
+          )}
+          {activeTab === 'upgrades' && (
             <UpgradeList 
               upgrades={UPGRADES}
               upgradeLevels={upgradeLevels}
               setUpgradeLevel={handleSetUpgradeLevel}
+            />
+          )}
+          {activeTab === 'veins' && (
+            <VeinCalculator
+              veinConfig={veinConfig}
+              setVeinConfig={setVeinConfig}
+              floorsPerHour={calculatedStats.floorsPerHour}
             />
           )}
         </div>
