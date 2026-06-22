@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export function UpgradeList({ upgrades, upgradeLevels, setUpgradeLevel }) {
+export function UpgradeList({ upgrades, upgradeLevels, setUpgradeLevel, trackedUpgrades, toggleTrackUpgrade }) {
   const [hideMaxed, setHideMaxed] = useState(false);
   const telescopeLevel = upgradeLevels.upgradeTelescope || 0;
   const capperUpperLevel = upgradeLevels.capperUpper || 0;
@@ -64,8 +64,20 @@ export function UpgradeList({ upgrades, upgradeLevels, setUpgradeLevel }) {
               )}
 
               <div className="upgrade-body">
-                <div className="star-header">
+                <div className="star-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div className="star-name">{upgrade.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <input 
+                      type="checkbox"
+                      id={`track-${upgrade.id}`}
+                      className="star-checkbox"
+                      checked={!!trackedUpgrades[upgrade.id]}
+                      onChange={() => toggleTrackUpgrade(upgrade.id)}
+                    />
+                    <label htmlFor={`track-${upgrade.id}`} style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+                      Track
+                    </label>
+                  </div>
                 </div>
                 
                 <div className="upgrade-desc">

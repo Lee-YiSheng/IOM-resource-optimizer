@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { STARS } from './data/stars';
 import { UPGRADES } from './data/upgrades';
+import { getUpgradeCost, getUpgradeVein } from './data/upgradeCosts';
 import { calculateStats, getRecommendations } from './engine/calculator';
 import { calculateVeinIncome } from './engine/veinCalculator';
 import { StarList } from './components/StarList';
@@ -107,6 +108,15 @@ function App() {
     getInitialState('iom_vein_config', defaultVeinConfig)
   );
 
+  // Tracked Upgrades State
+  const defaultTrackedUpgrades = UPGRADES.reduce((acc, upgrade) => {
+    acc[upgrade.id] = false;
+    return acc;
+  }, {});
+  const [trackedUpgrades, setTrackedUpgrades] = useState(() => 
+    getInitialState('iom_tracked_upgrades', defaultTrackedUpgrades)
+  );
+
   // Sync to localStorage
   useEffect(() => {
     localStorage.setItem('iom_star_unlocked', JSON.stringify(starUnlocked));
@@ -127,6 +137,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('iom_vein_config', JSON.stringify(veinConfig));
   }, [veinConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_tracked_upgrades', JSON.stringify(trackedUpgrades));
+  }, [trackedUpgrades]);
 
   // Setters
   const handleSetStarLevel = (id, lvl) => {
@@ -150,6 +164,10 @@ function App() {
     setUpgradeLevels(prev => ({ ...prev, [id]: bounded }));
   };
 
+  const handleToggleTrackUpgrade = (id) => {
+    setTrackedUpgrades(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const handleSetGlobalStat = (key, val) => {
     setGlobalStats(prev => ({ ...prev, [key]: val }));
   };
@@ -159,6 +177,7 @@ function App() {
       setStarUnlocked(defaultUnlocks);
       setStarLevels(defaultStarLevels);
       setUpgradeLevels(defaultUpgradeLevels);
+      setTrackedUpgrades(defaultTrackedUpgrades);
       setGlobalStats(defaultGlobalStats);
       setVeinConfig(defaultVeinConfig);
     }
@@ -169,6 +188,7 @@ function App() {
       starUnlocked,
       starLevels,
       upgradeLevels,
+      trackedUpgrades,
       globalStats,
       veinConfig,
       exportedAt: new Date().toISOString(),
@@ -213,6 +233,9 @@ function App() {
         if (parsed.upgradeLevels) {
           setUpgradeLevels(prev => ({ ...prev, ...parsed.upgradeLevels }));
         }
+        if (parsed.trackedUpgrades) {
+          setTrackedUpgrades(prev => ({ ...prev, ...parsed.trackedUpgrades }));
+        }
         if (parsed.globalStats) {
           setGlobalStats(prev => ({ ...prev, ...parsed.globalStats }));
         }
@@ -255,6 +278,28 @@ function App() {
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
     });
   }, [veinConfig, calculatedStats.floorsPerHour]);
+
+  const veinsNeeded = useMemo(() => {
+    const needed = {};
+    Object.entries(trackedUpgrades).forEach(([upgradeId, isTracked]) => {
+      if (!isTracked) return;
+      const upgrade = UPGRADES.find(u => u.id === upgradeId);
+      if (!upgrade) return;
+
+      const currentLevel = upgradeLevels[upgradeId] || 0;
+      const capperUpperLvl = upgradeLevels.capperUpper || 0;
+      const maxVal = upgrade.affectedByCapperUpper 
+        ? upgrade.maxLevel + (capperUpperLvl * 5) 
+        : upgrade.maxLevel;
+
+      for (let lvl = currentLevel + 1; lvl <= maxVal; lvl++) {
+        const cost = getUpgradeCost(upgradeId, lvl);
+        const vein = getUpgradeVein(upgradeId, lvl);
+        needed[vein] = (needed[vein] || 0) + cost;
+      }
+    });
+    return needed;
+  }, [trackedUpgrades, upgradeLevels]);
 
   return (
     <>
@@ -352,6 +397,7 @@ function App() {
           onUpgradeStar={handleSetStarLevel}
           onUpgradeShop={handleSetUpgradeLevel}
           veinStats={veinStats}
+          veinsNeeded={veinsNeeded}
         />
 
         {/* Right Active configuration view */}
@@ -371,6 +417,8 @@ function App() {
               upgrades={UPGRADES}
               upgradeLevels={upgradeLevels}
               setUpgradeLevel={handleSetUpgradeLevel}
+              trackedUpgrades={trackedUpgrades}
+              toggleTrackUpgrade={handleToggleTrackUpgrade}
             />
           )}
           {activeTab === 'veins' && (

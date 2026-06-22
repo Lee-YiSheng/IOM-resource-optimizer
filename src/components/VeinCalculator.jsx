@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { calculateVeinIncome } from '../engine/veinCalculator';
 import { WORLD_NAMES } from '../data/veins';
 
@@ -9,6 +9,40 @@ import { WORLD_NAMES } from '../data/veins';
  */
 export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
   const [showDrone, setShowDrone] = useState(false);
+  const [statIncrements, setStatIncrements] = useState(() => {
+    try {
+      const saved = localStorage.getItem('iom_vein_stat_incr');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      veinSpawnRateMulti: 5,
+      veinIncomeMulti: 5,
+      goldenVeinChance: 5,
+      goldenVeinMulti: 5,
+      rainbowVeinChance: 5,
+      rainbowVeinMulti: 5,
+      gleamingVeinChance: 5,
+      gleamingVeinMulti: 5,
+      veinCardMultiplier: 5,
+    };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('iom_vein_stat_incr', JSON.stringify(statIncrements));
+    } catch (e) {}
+  }, [statIncrements]);
+
+  const handleStatIncrementChange = (key, value, isChance) => {
+    let finalValue = value;
+    if (isChance) {
+      finalValue = Math.round(value);
+    }
+    setStatIncrements(prev => ({
+      ...prev,
+      [key]: finalValue
+    }));
+  };
 
   // Helper to update a single vein config key
   const setField = (key, val) => setVeinConfig(prev => ({ ...prev, [key]: val }));
@@ -21,6 +55,78 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
     });
   }, [veinConfig, floorsPerHour]);
+
+  const getIncrementGain = (key) => {
+    const incrementValue = statIncrements[key] ?? 5;
+    const factor = 1 + (incrementValue / 100);
+    const addition = incrementValue / 100;
+
+    let modifiedConfig = { ...veinConfig };
+
+    if (
+      key === 'veinSpawnRateMulti' ||
+      key === 'veinIncomeMulti' ||
+      key === 'goldenVeinMulti' ||
+      key === 'rainbowVeinMulti' ||
+      key === 'gleamingVeinMulti' ||
+      key === 'veinCardMultiplier'
+    ) {
+      const currentVal = veinConfig[key] || 1.0;
+      modifiedConfig[key] = currentVal * factor;
+    } else if (
+      key === 'goldenVeinChance' ||
+      key === 'rainbowVeinChance' ||
+      key === 'gleamingVeinChance'
+    ) {
+      const currentVal = veinConfig[key] || 0.0;
+      modifiedConfig[key] = Math.min(1.0, currentVal + addition);
+    } else {
+      return null;
+    }
+
+    const modifiedStats = calculateVeinIncome({
+      ...modifiedConfig,
+      floorsPerHour,
+      cardMultiplier: modifiedConfig.veinCardMultiplier || 1.0,
+    });
+
+    return modifiedStats.totalIncomePerHour - veinStats.totalIncomePerHour;
+  };
+
+  const renderIncrementRow = (key, isChance) => {
+    const incrementValue = statIncrements[key] ?? 5;
+    const gain = getIncrementGain(key);
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px', 
+        marginTop: '8px', 
+        fontSize: '0.8rem', 
+        borderTop: '1px dashed var(--border-light)', 
+        paddingTop: '8px' 
+      }}>
+        <span style={{ color: 'var(--color-text-secondary)' }}>Gain if +</span>
+        <input
+          type="number"
+          step={isChance ? "1" : "0.1"}
+          min="0"
+          value={incrementValue}
+          onChange={e => handleStatIncrementChange(key, parseFloat(e.target.value) || 0, isChance)}
+          className="custom-number-input"
+          style={{ width: '60px', padding: '2px 4px', fontSize: '0.75rem', height: '24px' }}
+        />
+        <span style={{ color: 'var(--color-text-muted)' }}>
+          {isChance ? '%' : '% (multi)'}
+        </span>
+        {gain !== null && gain > 0.0001 && (
+          <span style={{ marginLeft: 'auto', color: 'var(--color-accent-emerald)', fontWeight: '600' }}>
+            +{formatNum(gain)}/hr
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // Format numbers nicely
   const formatNum = (num) => {
@@ -53,7 +159,9 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
         <div className="vein-input-grid">
           {/* Vein Spawn Rate Multi */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Vein Spawn Rate Multi</label>
+            <label className="vein-input-label">
+              Vein Spawn Rate Multi
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -72,11 +180,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('veinSpawnRateMulti', false)}
           </div>
 
           {/* Vein Income Multi */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Vein Income Multi</label>
+            <label className="vein-input-label">
+              Vein Income Multi
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -95,11 +206,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('veinIncomeMulti', false)}
           </div>
 
           {/* Golden Vein Chance */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Golden Vein Chance (%)</label>
+            <label className="vein-input-label">
+              Golden Vein Chance (%)
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -118,11 +232,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('goldenVeinChance', true)}
           </div>
 
           {/* Golden Vein Multi */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Golden Vein Multi</label>
+            <label className="vein-input-label">
+              Golden Vein Multi
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -141,11 +258,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('goldenVeinMulti', false)}
           </div>
 
           {/* Rainbow Vein Chance */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Rainbow Vein Chance (%)</label>
+            <label className="vein-input-label">
+              Rainbow Vein Chance (%)
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -164,11 +284,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('rainbowVeinChance', true)}
           </div>
 
           {/* Rainbow Vein Multi */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Rainbow Vein Multi</label>
+            <label className="vein-input-label">
+              Rainbow Vein Multi
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -187,11 +310,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('rainbowVeinMulti', false)}
           </div>
 
           {/* Gleaming Vein Chance */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Gleaming Vein Chance (%)</label>
+            <label className="vein-input-label">
+              Gleaming Vein Chance (%)
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -210,11 +336,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('gleamingVeinChance', true)}
           </div>
 
           {/* Gleaming Vein Multi */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Gleaming Vein Multi</label>
+            <label className="vein-input-label">
+              Gleaming Vein Multi
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -233,11 +362,14 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('gleamingVeinMulti', false)}
           </div>
 
           {/* Vein Card Multiplier */}
           <div className="vein-input-item">
-            <label className="vein-input-label">Vein Card Multiplier</label>
+            <label className="vein-input-label">
+              Vein Card Multiplier
+            </label>
             <div className="input-slider-container">
               <input
                 type="range"
@@ -256,6 +388,7 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
                 className="custom-number-input"
               />
             </div>
+            {renderIncrementRow('veinCardMultiplier', false)}
           </div>
         </div>
 

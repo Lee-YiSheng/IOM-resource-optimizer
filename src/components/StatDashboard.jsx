@@ -7,7 +7,8 @@ export function StatDashboard({
   recommendations,
   onUpgradeStar,
   onUpgradeShop,
-  veinStats
+  veinStats,
+  veinsNeeded
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showOtherPerks, setShowOtherPerks] = useState(false);
@@ -212,6 +213,26 @@ export function StatDashboard({
             })()}
           </div>
         </div>
+      </div>
+
+      <div>
+        <h2 className="dashboard-section-title">Tracked Upgrade Costs</h2>
+        {veinsNeeded && Object.keys(veinsNeeded).length > 0 ? (
+          <div className="active-stats-grid" style={{ marginTop: '8px', marginBottom: '16px' }}>
+            {Object.entries(veinsNeeded).sort((a,b) => b[1] - a[1]).map(([vein, amount]) => (
+              <div key={vein} className="active-stat-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px' }}>
+                <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.8rem' }}>{vein}:</span>
+                <span style={{ color: 'var(--color-accent-teal)', fontWeight: '600' }}>
+                  {formatNum(amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginTop: '8px', paddingBottom: '12px' }}>
+            No upgrades tracked. Check 'Track' on an upgrade to see total costs to max level.
+          </div>
+        )}
       </div>
 
       <div>
