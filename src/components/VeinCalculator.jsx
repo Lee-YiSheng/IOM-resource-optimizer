@@ -7,7 +7,7 @@ import { WORLD_NAMES } from '../data/veins';
  * Inputs: vein multipliers, drone, bomb, ores/floor.
  * Output: per-vein-type income table grouped by world.
  */
-export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
+export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour, contractLevels = {} }) {
   const [showDrone, setShowDrone] = useState(false);
   const [statIncrements, setStatIncrements] = useState(() => {
     try {
@@ -53,8 +53,9 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
       ...veinConfig,
       floorsPerHour,
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+      contractLevels,
     });
-  }, [veinConfig, floorsPerHour]);
+  }, [veinConfig, floorsPerHour, contractLevels]);
 
   const getIncrementGain = (key) => {
     const incrementValue = statIncrements[key] ?? 5;
@@ -88,6 +89,7 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour }) {
       ...modifiedConfig,
       floorsPerHour,
       cardMultiplier: modifiedConfig.veinCardMultiplier || 1.0,
+      contractLevels,
     });
 
     return modifiedStats.totalIncomePerHour - veinStats.totalIncomePerHour;

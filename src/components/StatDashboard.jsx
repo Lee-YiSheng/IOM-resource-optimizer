@@ -7,6 +7,7 @@ export function StatDashboard({
   recommendations,
   onUpgradeStar,
   onUpgradeShop,
+  onUpgradeContract,
   veinStats,
   veinsNeeded
 }) {
@@ -22,6 +23,20 @@ export function StatDashboard({
     if (num >= 1000000) return `${(num / 1000000).toFixed(2)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(2)}K`;
     return num.toFixed(2);
+  };
+
+  const formatEfficiency = (num) => {
+    if (num === undefined || isNaN(num) || num <= 1e-15) return '-';
+    if (num >= 100) return `${num.toFixed(1)}%`;
+    if (num >= 1) return `${num.toFixed(2)}%`;
+    if (num < 0.0001) {
+      return `${num.toExponential(2)}%`;
+    }
+    const prec = num.toPrecision(3);
+    if (prec.includes('e')) {
+      return `${num.toExponential(2)}%`;
+    }
+    return `${prec.replace(/0+$/, '').replace(/\.$/, '')}%`;
   };
 
   return (
@@ -212,6 +227,120 @@ export function StatDashboard({
               );
             })()}
           </div>
+        </div>
+
+        {/* Best Contracts Section */}
+        <div style={{ marginTop: '16px', borderTop: '1px dashed var(--border-light)', paddingTop: '12px' }}>
+          <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '8px', fontWeight: '600', fontFamily: 'var(--font-mono)' }}>
+            Best Contracts (Top 4)
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1.2fr 1fr 1fr 1fr',
+            gap: '4px',
+            fontSize: '0.65rem',
+            color: 'var(--color-text-muted)',
+            fontWeight: 'bold',
+            borderBottom: '1px solid var(--border-light)',
+            paddingBottom: '4px',
+            marginBottom: '6px',
+            textAlign: 'center'
+          }}>
+            <span style={{ textAlign: 'left' }}>Contract (CP)</span>
+            <span>% Veins/CP</span>
+            <span>% Stars/CP</span>
+            <span>% S.Stars/CP</span>
+          </div>
+
+          {(() => {
+            const currentReg = stats.regularStarYieldPerHour || 0;
+            const currentSuper = stats.superStarYieldPerHour || 0;
+            const currentVein = veinStats?.totalIncomePerHour || 0;
+
+            const isRegular = optTarget === 'regular';
+            const sortedContracts = [...(recommendations?.contractRecs || [])]
+              .sort((a, b) => {
+                const aCost = a.cost || 1;
+                const bCost = b.cost || 1;
+                if (isRegular) {
+                  const aVal = currentReg > 0 ? (a.deltaReg / currentReg) / aCost : 0;
+                  const bVal = currentReg > 0 ? (b.deltaReg / currentReg) / bCost : 0;
+                  if (bVal !== aVal) return bVal - aVal;
+                  return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
+                } else {
+                  const aVal = currentSuper > 0 ? (a.deltaSuper / currentSuper) / aCost : 0;
+                  const bVal = currentSuper > 0 ? (b.deltaSuper / currentSuper) / bCost : 0;
+                  if (bVal !== aVal) return bVal - aVal;
+                  return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
+                }
+              })
+              .filter(r => r.deltaReg > 0.0001 || r.deltaSuper > 0.0001 || r.deltaVein > 0.0001)
+              .slice(0, 4);
+
+            if (sortedContracts.length > 0) {
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {sortedContracts.map(rec => {
+                    const aCost = rec.cost || 1;
+                    const veinEff = currentVein > 0 ? ((rec.deltaVein / currentVein) * 100) / aCost : 0;
+                    const regEff = currentReg > 0 ? ((rec.deltaReg / currentReg) * 100) / aCost : 0;
+                    const superEff = currentSuper > 0 ? ((rec.deltaSuper / currentSuper) * 100) / aCost : 0;
+
+                    return (
+                      <button 
+                        key={rec.id} 
+                        type="button"
+                        className="suggestion-btn" 
+                        onClick={() => onUpgradeContract(rec.id, rec.nextLevel)}
+                        title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
+                        style={{ 
+                          padding: '6px 4px', 
+                          display: 'grid', 
+                          gridTemplateColumns: '1.2fr 1fr 1fr 1fr', 
+                          gap: '4px',
+                          alignItems: 'center',
+                          textAlign: 'center',
+                          fontSize: '0.7rem',
+                          border: '1px solid var(--border-light)',
+                          width: '100%'
+                        }}
+                      >
+                        <div style={{ textAlign: 'left', minWidth: 0 }}>
+                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500', color: 'var(--color-text-primary)' }}>
+                            {rec.name}
+                          </div>
+                          <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }}>
+                            Lvl {rec.currentLevel}→{rec.nextLevel} ({rec.cost} CP)
+                          </div>
+                        </div>
+                        
+                        {/* Veins/CP */}
+                        <span style={{ color: veinEff > 0 ? 'var(--color-accent-emerald)' : 'var(--color-text-muted)', fontWeight: veinEff > 0 ? '600' : 'normal' }}>
+                          {formatEfficiency(veinEff)}
+                        </span>
+
+                        {/* Stars/CP */}
+                        <span style={{ color: regEff > 0 ? 'var(--color-star)' : 'var(--color-text-muted)', fontWeight: regEff > 0 ? '600' : 'normal' }}>
+                          {formatEfficiency(regEff)}
+                        </span>
+
+                        {/* Super Stars/CP */}
+                        <span style={{ color: superEff > 0 ? 'var(--color-superstar)' : 'var(--color-text-muted)', fontWeight: superEff > 0 ? '600' : 'normal' }}>
+                          {formatEfficiency(superEff)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            }
+            return (
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                No contract upgrades available.
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -412,6 +541,34 @@ export function StatDashboard({
                 className="custom-slider"
                 style={{ width: '100%' }}
               />
+            </div>
+
+            <div className="config-group">
+              <div className="config-label-row">
+                <span>Contract Upgrade Cap Increase:</span>
+                <span className="stat-value">+{globalStats.contractUpgradeCapIncrease || 0}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="lvl-btn"
+                  onClick={() => setGlobalStat('contractUpgradeCapIncrease', Math.max(0, (globalStats.contractUpgradeCapIncrease || 0) - 1))}
+                  style={{ width: '26px', height: '26px', fontSize: '0.9rem', borderRadius: '4px' }}
+                >
+                  -
+                </button>
+                <div style={{ flex: 1, textAlign: 'center', fontSize: '0.8rem', color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>
+                  +{globalStats.contractUpgradeCapIncrease || 0} levels
+                </div>
+                <button
+                  type="button"
+                  className="lvl-btn"
+                  onClick={() => setGlobalStat('contractUpgradeCapIncrease', (globalStats.contractUpgradeCapIncrease || 0) + 1)}
+                  style={{ width: '26px', height: '26px', fontSize: '0.9rem', borderRadius: '4px' }}
+                >
+                  +
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

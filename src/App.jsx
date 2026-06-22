@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { STARS } from './data/stars';
 import { UPGRADES } from './data/upgrades';
+import { CONTRACTS } from './data/contracts';
 import { getUpgradeCost, getUpgradeVein } from './data/upgradeCosts';
 import { calculateStats, getRecommendations } from './engine/calculator';
 import { calculateVeinIncome } from './engine/veinCalculator';
 import { StarList } from './components/StarList';
 import { UpgradeList } from './components/UpgradeList';
+import { ContractList } from './components/ContractList';
 import { StatDashboard } from './components/StatDashboard';
 import { VeinCalculator } from './components/VeinCalculator';
 
@@ -55,12 +57,25 @@ function App() {
     getInitialState('iom_upgrade_levels', defaultUpgradeLevels)
   );
 
+  // Contracts Levels State
+  const defaultContractLevels = CONTRACTS.reduce((acc, contract) => {
+    acc[contract.id] = 0;
+    return acc;
+  }, {});
+  const [contractLevels, setContractLevels] = useState(() =>
+    getInitialState('iom_contract_levels', defaultContractLevels)
+  );
+
+  // Recommendation Optimization Target State
+  const [optTarget, setOptTarget] = useState('regular');
+
   // Global Config Stats State
   const defaultGlobalStats = {
     gameSpeed: 1.0,
     cardMultiplier: 1.0,
     manualCatchRate: 1.0,
     starUpgradeCapBonus: 0,
+    contractUpgradeCapIncrease: 0,
     starSupernovaMultiplier: 0.0,
     superStarSupernovaMultiplier: 0.0,
     starSupergiantMultiplier: 0.0,
@@ -142,6 +157,10 @@ function App() {
     localStorage.setItem('iom_tracked_upgrades', JSON.stringify(trackedUpgrades));
   }, [trackedUpgrades]);
 
+  useEffect(() => {
+    localStorage.setItem('iom_contract_levels', JSON.stringify(contractLevels));
+  }, [contractLevels]);
+
   // Setters
   const handleSetStarLevel = (id, lvl) => {
     const star = STARS.find(s => s.id === id);
@@ -172,6 +191,13 @@ function App() {
     setGlobalStats(prev => ({ ...prev, [key]: val }));
   };
 
+  const handleSetContractLevel = (id, lvl) => {
+    const contract = CONTRACTS.find(c => c.id === id);
+    if (!contract) return;
+    const bounded = Math.max(0, Math.min(contract.maxLevel, lvl));
+    setContractLevels(prev => ({ ...prev, [id]: bounded }));
+  };
+
   const handleReset = () => {
     if (window.confirm("Are you sure you want to reset all levels and stats?")) {
       setStarUnlocked(defaultUnlocks);
@@ -180,6 +206,7 @@ function App() {
       setTrackedUpgrades(defaultTrackedUpgrades);
       setGlobalStats(defaultGlobalStats);
       setVeinConfig(defaultVeinConfig);
+      setContractLevels(defaultContractLevels);
     }
   };
 
@@ -191,8 +218,9 @@ function App() {
       trackedUpgrades,
       globalStats,
       veinConfig,
+      contractLevels,
       exportedAt: new Date().toISOString(),
-      version: "1.1.0"
+      version: "1.2.0"
     };
     
     const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
@@ -242,6 +270,9 @@ function App() {
         if (parsed.veinConfig) {
           setVeinConfig(prev => ({ ...prev, ...parsed.veinConfig }));
         }
+        if (parsed.contractLevels) {
+          setContractLevels(prev => ({ ...prev, ...parsed.contractLevels }));
+        }
         
         alert("Setup imported successfully!");
       } catch (err) {
@@ -258,7 +289,8 @@ function App() {
     starLevels,
     starUnlocked,
     upgradeLevels,
-    globalStats
+    globalStats,
+    contractLevels
   });
 
   const recommendations = getRecommendations({
@@ -266,8 +298,11 @@ function App() {
     starUnlocked,
     upgradeLevels,
     globalStats,
+    contractLevels,
+    veinConfig,
     stars: STARS,
-    upgrades: UPGRADES
+    upgrades: UPGRADES,
+    contracts: CONTRACTS
   });
 
   // Vein income calculations (memoized)
@@ -276,8 +311,9 @@ function App() {
       ...veinConfig,
       floorsPerHour: calculatedStats.floorsPerHour,
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+      contractLevels,
     });
-  }, [veinConfig, calculatedStats.floorsPerHour]);
+  }, [veinConfig, calculatedStats.floorsPerHour, contractLevels]);
 
   const veinsNeeded = useMemo(() => {
     const needed = {};
@@ -339,6 +375,18 @@ function App() {
           </button>
           <button 
             type="button"
+            className={`tab-btn ${activeTab === 'contracts' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('contracts');
+              setTimeout(() => {
+                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 50);
+            }}
+          >
+            📜 Contracts
+          </button>
+          <button 
+            type="button"
             className={`tab-btn ${activeTab === 'veins' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('veins');
@@ -396,8 +444,11 @@ function App() {
           recommendations={recommendations}
           onUpgradeStar={handleSetStarLevel}
           onUpgradeShop={handleSetUpgradeLevel}
+          onUpgradeContract={handleSetContractLevel}
           veinStats={veinStats}
           veinsNeeded={veinsNeeded}
+          optTarget={optTarget}
+          setOptTarget={setOptTarget}
         />
 
         {/* Right Active configuration view */}
@@ -421,11 +472,25 @@ function App() {
               toggleTrackUpgrade={handleToggleTrackUpgrade}
             />
           )}
+          {activeTab === 'contracts' && (
+            <ContractList 
+              contracts={CONTRACTS}
+              contractLevels={contractLevels}
+              setContractLevel={handleSetContractLevel}
+              recommendations={recommendations}
+              optTarget={optTarget}
+              contractUpgradeCapIncrease={globalStats.contractUpgradeCapIncrease || 0}
+              currentReg={calculatedStats.regularStarYieldPerHour}
+              currentSuper={calculatedStats.superStarYieldPerHour}
+              currentVein={veinStats?.totalIncomePerHour || 0}
+            />
+          )}
           {activeTab === 'veins' && (
             <VeinCalculator
               veinConfig={veinConfig}
               setVeinConfig={setVeinConfig}
               floorsPerHour={calculatedStats.floorsPerHour}
+              contractLevels={contractLevels}
             />
           )}
         </div>

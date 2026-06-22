@@ -5,20 +5,25 @@
  */
 import { getStarCost } from "../data/starCosts.js";
 import { getUpgradeCost, getUpgradeVein, upgradeCosts } from "../data/upgradeCosts.js";
-export function calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats }) {
+import { getContractCost, CONTRACTS } from "../data/contracts.js";
+import { calculateVeinIncome } from "./veinCalculator.js";
+
+export function calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels = {} }) {
   // 1. Helper to get levels safely
   const getStarLvl = (id) => starLevels[id] || 0;
   const getUpgradeLvl = (id) => upgradeLevels[id] || 0;
+  const getContractLvl = (id) => contractLevels[id] || 0;
 
   // 2. Telescope Unlock Logic (check which stars are unlocked based on telescope and checklist)
-  // Default is that we can unlock up to telescopeLevel + 1 stars.
-  // Wait, let's just use the user's checklist to see which ones they have enabled,
-  // but we can show a warning in the UI if they check more than their telescope allows.
   const enabledStarsList = Object.keys(starUnlocked).filter(id => starUnlocked[id]);
   const numEnabledStars = enabledStarsList.length;
 
   // 3. Speed & Floor Calculations
-  const gameSpeed = globalStats.gameSpeed || 1.0;
+  const baseGameSpeed = globalStats.gameSpeed || 1.0;
+  const contractGameSpeedLevel = getContractLvl("baseGameSpeed");
+  const contractGameSpeedMult = 1 + contractGameSpeedLevel * 0.01;
+  const gameSpeed = baseGameSpeed * contractGameSpeedMult;
+  
   const cardMultiplier = globalStats.cardMultiplier || 1.0;
   const manualCatchRate = globalStats.manualCatchRate !== undefined ? globalStats.manualCatchRate : 1.0;
   
@@ -49,7 +54,10 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const superStarSpawnRateUpgrade = getUpgradeLvl("superStarSpawnRate") * 0.02;
   const stargazingSuperStarSpawnMult = 1 + superStarSpawnRatePerk + superStarSpawnRateUpgrade;
 
-  const contractLevel = globalStats.contractLevel || 0;
+  // Use superStarSpawnRate contract level if available, otherwise fallback to old globalStats.contractLevel
+  const contractLevel = contractLevels.superStarSpawnRate !== undefined 
+    ? getContractLvl("superStarSpawnRate") 
+    : (globalStats.contractLevel || 0);
   const contractSuperStarMult = 1 + contractLevel * 0.03;
   
   const superStarSpawnBuff3x = !!globalStats.superStarSpawnBuff3x;
@@ -71,7 +79,6 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const totalCatchRate = droneFueled ? 1.0 : (totalAutoCatchChance + (1.0 - totalAutoCatchChance) * manualCatchRate);
 
   // 6. Expected Multi-Spawns
-  // Regular Stars: Double and Triple (including Drone level addend)
   const doubleStarChance = getUpgradeLvl("doubleStarChance") * 0.05;
   const droneLevelActive = !!globalStats.droneLevelActive;
   const droneLevel = globalStats.droneLevel || 0;
@@ -117,8 +124,9 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   
   const expectedTotalStarMulti = expectedSN_SG_Star * (1 - starRChance + starRChance * starRMulti);
 
-  // Expected Multipliers for Super Stars
-  const superSNChance = globalStats.superStarSupernovaChance || 0.0;
+  // Expected Multipliers for Super Stars (Supernova chance contract increases chance additively)
+  const contractSupernovaLvl = getContractLvl("supernovaChance");
+  const superSNChance = (globalStats.superStarSupernovaChance || 0.0) + (contractSupernovaLvl * 0.0015);
   const superSNMulti = 10 * (1 + superSNMod) * ctrlFMult;
 
   const superSGChance = getUpgradeLvl("superStarSupergiantChance") * 0.0015;
@@ -141,7 +149,6 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const totalAllStarMulti = 1 + allStarMultiPerk + allStarMultiUpgrade;
 
   // 9. Final Hourly Yields
-  // Shards per Hour = Floors/Hr * SpawnChance * ExpectedCount * ExpectedMulti * CatchRate * AllStarMulti * CardMulti
   const baseRegularYield = floorsPerHour * starSpawnChance * expectedRegularStarsPerSpawn * expectedTotalStarMulti * totalCatchRate * totalAllStarMulti * cardMultiplier;
   const baseSuperYield = floorsPerHour * superStarSpawnChance * expectedSuperStarsPerSpawn * expectedTotalSuperMulti * totalCatchRate * totalAllStarMulti * cardMultiplier;
 
@@ -150,25 +157,25 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
 
   const yieldPerStarType = regularStarYieldPerHour;
 
-  // 10. Secondary Perks Display Data (helpful for showing other stats gained in the app)
+  // 10. Secondary Perks Display Data
   const activeOtherPerks = {
     veinSpawnRate: getStarLvl("aries") * 3,
-    goldenVeinChance: getStarLvl("aries") * 1,
-    pickaxeDamage: getStarLvl("taurus") * 12 + getStarLvl("scorpio") * 15,
-    goldenFloorMulti: 1 + getStarLvl("gemini") * 0.02,
+    goldenVeinChance: getStarLvl("aries") * 1 + getContractLvl("goldenVeinChance") * 1,
+    pickaxeDamage: getStarLvl("taurus") * 12 + getStarLvl("scorpio") * 15 + getContractLvl("pickaxeDamage") * 15 + getContractLvl("pickaxeDamagePerContract") * 1,
+    goldenFloorMulti: (1 + getStarLvl("gemini") * 0.02) * (1 + getContractLvl("goldenFloorMultiplier") * 0.03),
     doubleContractPointChance: getStarLvl("cancer") * 1,
     contractUpgradeCost: getStarLvl("cancer") * -1,
     workshopCap: getStarLvl("leo") * 1,
-    bombRechargeRate: getStarLvl("virgo") * 1,
-    prestigePointsGain: getStarLvl("libra") * 5,
+    bombRechargeRate: getStarLvl("virgo") * 1 + getContractLvl("bombRechargeRate") * 3,
+    prestigePointsGain: getStarLvl("libra") * 5 + getContractLvl("prestigePointGain") * 10,
     tripleLootbugChance: getStarLvl("libra") * 1,
     lootbugSpawnRate: getStarLvl("sagittarius") * 2,
-    experienceGain: getStarLvl("capricorn") * 15,
+    experienceGain: getStarLvl("capricorn") * 15 + getContractLvl("expGain") * 10,
     itemDuration: getStarLvl("capricorn") * 1,
     barCraftCosts: getStarLvl("aquarius") * -1,
     goldenLootbugChance: getStarLvl("aquarius") * 1,
     petLevelCap: getStarLvl("pisces") * 1,
-    rainbowFloorMulti: getStarLvl("pisces") * 10,
+    rainbowFloorMulti: (getStarLvl("pisces") * 10) * (1 + getContractLvl("rainbowFloorMulti") * 0.02),
     bankedFreebieCap: getStarLvl("ophiuchus") * 1,
     bankedLootbugCap: getStarLvl("ophiuchus") * 1,
     craft100xChance: getStarLvl("orion") * 0.10,
@@ -182,9 +189,20 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
     allFloorMulti: getStarLvl("eridanus") * 2,
     stonksMulti: getStarLvl("eridanus") * 2,
     superStonksChance: getStarLvl("eridanus") * 0.10,
+
+    tripleCraftChance: getContractLvl("tripleCraftChance") * 1,
+    pickaxeSuperCritChance: getContractLvl("pickaxeSuperCritChance") * 2,
+    pickaxeCritDamage: getContractLvl("pickaxeCritDamage") * 10,
+    upgradeBarCost: getContractLvl("upgradeBarCost") * -5,
+    x10CraftChance: getContractLvl("x10CraftChance") * 1,
+    bombDamagePerContract: getContractLvl("bombDamagePerContract") * 1,
+    oreSellPrice: getContractLvl("oreSellPrice") * 15,
+    veinIncomeMultiplier: getContractLvl("veinIncomeMultiplier") * 4,
+    ultraCritChance: getContractLvl("ultraCritChance") * 1,
   };
 
   return {
+    gameSpeed,
     floorsPerHour,
     starSpawnRateMult,
     superStarSpawnRateMult,
@@ -209,14 +227,55 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   };
 }
 
-export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, globalStats, stars, upgrades }) {
-  const current = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats });
+export function getRecommendations({ 
+  starLevels, 
+  starUnlocked, 
+  upgradeLevels, 
+  globalStats, 
+  contractLevels = {}, 
+  veinConfig = {}, 
+  stars, 
+  upgrades,
+  contracts = CONTRACTS 
+}) {
+  const current = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels });
   const currentReg = current.regularStarYieldPerHour;
   const currentSuper = current.superStarYieldPerHour;
   const currentTotal = currentReg + currentSuper;
 
+  // Helper to compute vein income using current config and computed stats
+  const getVeinIncome = (stats, cLevels) => {
+    if (!veinConfig || Object.keys(veinConfig).length === 0) return 0;
+    
+    // W2 veinIncomeMultiplier
+    const contractVeinIncomeLevel = cLevels.veinIncomeMultiplier || 0;
+    const contractVeinIncomeMult = 1 + contractVeinIncomeLevel * 0.04;
+    
+    // W2 goldenVeinChance
+    const contractGoldenVeinLevel = cLevels.goldenVeinChance || 0;
+    const contractGoldenVeinAdd = contractGoldenVeinLevel * 0.01;
+    
+    const baseVeinIncomeMulti = veinConfig.veinIncomeMulti || 1.0;
+    const effectiveVeinIncomeMulti = baseVeinIncomeMulti * contractVeinIncomeMult;
+    
+    const baseGoldenChance = veinConfig.goldenVeinChance || 0;
+    const effectiveGoldenChance = Math.min(1.0, baseGoldenChance + contractGoldenVeinAdd);
+
+    const vStats = calculateVeinIncome({
+      ...veinConfig,
+      veinIncomeMulti: effectiveVeinIncomeMulti,
+      goldenVeinChance: effectiveGoldenChance,
+      floorsPerHour: stats.floorsPerHour,
+      cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+    });
+    return vStats.totalIncomePerHour;
+  };
+
+  const currentVein = getVeinIncome(current, contractLevels);
+
   const starRecs = [];
   const upgradeRecs = [];
+  const contractRecs = [];
 
   // Helper to compute time to upgrade using current effective yield (regular stars only)
   const computeTime = (cost, yieldPerHour) => {
@@ -234,7 +293,7 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
     const maxLvl = star.maxLevel + (globalStats.starUpgradeCapBonus || 0);
     if (currentLvl < maxLvl) {
       const tempLevels = { ...starLevels, [star.id]: currentLvl + 1 };
-      const simulated = calculateStats({ starLevels: tempLevels, starUnlocked, upgradeLevels, globalStats });
+      const simulated = calculateStats({ starLevels: tempLevels, starUnlocked, upgradeLevels, globalStats, contractLevels });
       const deltaReg = simulated.regularStarYieldPerHour - currentReg;
       const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
       const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
@@ -268,7 +327,7 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
 
     if (!isLocked && currentLvl < maxLvl) {
       const tempUpgrades = { ...upgradeLevels, [upgrade.id]: currentLvl + 1 };
-      const simulated = calculateStats({ starLevels, starUnlocked, upgradeLevels: tempUpgrades, globalStats });
+      const simulated = calculateStats({ starLevels, starUnlocked, upgradeLevels: tempUpgrades, globalStats, contractLevels });
       const deltaReg = simulated.regularStarYieldPerHour - currentReg;
       const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
       const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
@@ -290,8 +349,40 @@ export function getRecommendations({ starLevels, starUnlocked, upgradeLevels, gl
     }
   });
 
+  // Simulate Contract upgrades (+1 level)
+  const contractUpgradeCapIncrease = globalStats.contractUpgradeCapIncrease || 0;
+  contracts.forEach(contract => {
+    const currentLvl = contractLevels[contract.id] || 0;
+    const maxLvl = contract.maxLevel + contractUpgradeCapIncrease;
+    if (currentLvl < maxLvl) {
+      const tempLevels = { ...contractLevels, [contract.id]: currentLvl + 1 };
+      const simulated = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: tempLevels });
+      const deltaReg = simulated.regularStarYieldPerHour - currentReg;
+      const deltaSuper = simulated.superStarYieldPerHour - currentSuper;
+      const deltaTotal = (simulated.regularStarYieldPerHour + simulated.superStarYieldPerHour) - currentTotal;
+      
+      const simulatedVein = getVeinIncome(simulated, tempLevels);
+      const deltaVein = simulatedVein - currentVein;
+      
+      const cost = getContractCost(contract.id, currentLvl + 1);
+      contractRecs.push({
+        id: contract.id,
+        name: contract.name,
+        world: contract.world,
+        currentLevel: currentLvl,
+        nextLevel: currentLvl + 1,
+        deltaReg,
+        deltaSuper,
+        deltaTotal,
+        deltaVein,
+        cost,
+      });
+    }
+  });
+
   return {
     starRecs,
-    upgradeRecs
+    upgradeRecs,
+    contractRecs
   };
 }

@@ -52,7 +52,15 @@ export function calculateVeinIncome({
   veinmorpherBomb = false,
   floorsPerHour = 172800,
   cardMultiplier = 1.0,
+  contractLevels = {}
 }) {
+  // === Contract Effects ===
+  const contractVeinIncomeMult = 1 + (contractLevels.veinIncomeMultiplier || 0) * 0.04;
+  const effectiveVeinIncomeMulti = veinIncomeMulti * contractVeinIncomeMult;
+
+  const contractGoldenVeinAdd = (contractLevels.goldenVeinChance || 0) * 0.01;
+  const effectiveGoldenChanceInput = Math.min(1.0, goldenVeinChance + contractGoldenVeinAdd);
+
   // === Drone Effects ===
   // Vein Drone: +10% vein spawn rate base, +2% per level (up to 15)
   const droneSpawnMulti = veinDroneFueled
@@ -89,8 +97,6 @@ export function calculateVeinIncome({
     const veinsPerFloorNoBomb = ores * spawnProb;
 
     // --- Veinmorpher Bomb expected value ---
-    // Bomb: 10% chance to morph ALL ores to veins, 10% chance to make ALL veins golden
-    // Both rolls independent. 1 bomb per floor.
     let expectedVeinsPerFloor;
     let expectedGoldenFractionPerFloor;
 
@@ -103,27 +109,13 @@ export function calculateVeinIncome({
 
       // Golden fraction:
       // 90% normal golden chance + 10% all veins golden
-      expectedGoldenFractionPerFloor = (1 - bombGoldenChance) * goldenVeinChance + bombGoldenChance * 1.0;
+      expectedGoldenFractionPerFloor = (1 - bombGoldenChance) * effectiveGoldenChanceInput + bombGoldenChance * 1.0;
     } else {
       expectedVeinsPerFloor = veinsPerFloorNoBomb;
-      expectedGoldenFractionPerFloor = goldenVeinChance;
+      expectedGoldenFractionPerFloor = effectiveGoldenChanceInput;
     }
 
     // --- Income calculation per vein ---
-    // The user inputs are TOTAL multipliers (not additional on top of base):
-    //   - goldenVeinMulti: total golden vein income multiplier (default/base = 5)
-    //   - rainbowVeinMulti: stacks ON TOP of golden (rainbow income = golden × rainbow)
-    //   - gleamingVeinMulti: independent layer (default/base = 5)
-    //
-    // Golden/Rainbow layer (exclusive states per vein):
-    //   Normal (no golden): income = 1
-    //   Golden (not rainbow): income = effectiveGoldenMulti
-    //   Golden+Rainbow: income = effectiveGoldenMulti × rainbowVeinMulti
-    //
-    // Gleaming layer (independent roll, multiplicative):
-    //   Non-gleaming: ×1
-    //   Gleaming: × gleamingVeinMulti
-
     const goldenFrac = expectedGoldenFractionPerFloor;
 
     // Golden/Rainbow expected multiplier
@@ -137,7 +129,7 @@ export function calculateVeinIncome({
       gleamingVeinChance * gleamingVeinMulti;
 
     // Total expected income per vein
-    const expectedIncomePerVein = goldenRainbowLayer * gleamingLayer * veinIncomeMulti * cardMultiplier;
+    const expectedIncomePerVein = goldenRainbowLayer * gleamingLayer * effectiveVeinIncomeMulti * cardMultiplier;
 
     // --- Income per floor ---
     const incomePerFloor = expectedVeinsPerFloor * expectedIncomePerVein;
