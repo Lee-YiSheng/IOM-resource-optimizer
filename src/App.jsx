@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { STARS } from './data/stars';
+import { starFloors } from './data/starFloors';
 import { UPGRADES } from './data/upgrades';
 import { CONTRACTS } from './data/contracts';
 import { getUpgradeCost, getUpgradeVein } from './data/upgradeCosts';
@@ -37,6 +38,14 @@ function App() {
   }, {});
   const [starUnlocked, setStarUnlocked] = useState(() => 
     getInitialState('iom_star_unlocked', defaultUnlocks)
+  );
+
+  const [desiredStars, setDesiredStars] = useState(() =>
+    getInitialState('iom_desired_stars', {})
+  );
+
+  const [hiddenVeins, setHiddenVeins] = useState(() =>
+    getInitialState('iom_hidden_veins', {})
   );
 
   // Star Levels State
@@ -138,6 +147,14 @@ function App() {
   }, [starUnlocked]);
 
   useEffect(() => {
+    localStorage.setItem('iom_desired_stars', JSON.stringify(desiredStars));
+  }, [desiredStars]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_hidden_veins', JSON.stringify(hiddenVeins));
+  }, [hiddenVeins]);
+
+  useEffect(() => {
     localStorage.setItem('iom_star_levels', JSON.stringify(starLevels));
   }, [starLevels]);
 
@@ -173,6 +190,10 @@ function App() {
     setStarUnlocked(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleToggleDesiredStar = (id) => {
+    setDesiredStars(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const handleSetUpgradeLevel = (id, lvl) => {
     const upgrade = UPGRADES.find(u => u.id === id);
     const capperUpperLvl = upgradeLevels.capperUpper || 0;
@@ -187,6 +208,10 @@ function App() {
     setTrackedUpgrades(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleToggleHiddenVein = (veinName) => {
+    setHiddenVeins(prev => ({ ...prev, [veinName]: !prev[veinName] }));
+  };
+
   const handleSetGlobalStat = (key, val) => {
     setGlobalStats(prev => ({ ...prev, [key]: val }));
   };
@@ -194,7 +219,9 @@ function App() {
   const handleSetContractLevel = (id, lvl) => {
     const contract = CONTRACTS.find(c => c.id === id);
     if (!contract) return;
-    const bounded = Math.max(0, Math.min(contract.maxLevel, lvl));
+    const capIncrease = globalStats.contractUpgradeCapIncrease || 0;
+    const maxLevel = contract.maxLevel + capIncrease;
+    const bounded = Math.max(0, Math.min(maxLevel, lvl));
     setContractLevels(prev => ({ ...prev, [id]: bounded }));
   };
 
@@ -207,6 +234,7 @@ function App() {
       setGlobalStats(defaultGlobalStats);
       setVeinConfig(defaultVeinConfig);
       setContractLevels(defaultContractLevels);
+      setHiddenVeins({});
     }
   };
 
@@ -219,6 +247,7 @@ function App() {
       globalStats,
       veinConfig,
       contractLevels,
+      hiddenVeins,
       exportedAt: new Date().toISOString(),
       version: "1.2.0"
     };
@@ -272,6 +301,9 @@ function App() {
         }
         if (parsed.contractLevels) {
           setContractLevels(prev => ({ ...prev, ...parsed.contractLevels }));
+        }
+        if (parsed.hiddenVeins) {
+          setHiddenVeins(prev => ({ ...prev, ...parsed.hiddenVeins }));
         }
         
         alert("Setup imported successfully!");
@@ -447,8 +479,11 @@ function App() {
           onUpgradeContract={handleSetContractLevel}
           veinStats={veinStats}
           veinsNeeded={veinsNeeded}
+          starFloors={starFloors}
           optTarget={optTarget}
           setOptTarget={setOptTarget}
+          desiredStars={desiredStars}
+          starUnlocked={starUnlocked}
         />
 
         {/* Right Active configuration view */}
@@ -458,9 +493,18 @@ function App() {
               stars={STARS}
               starLevels={starLevels}
               starUnlocked={starUnlocked}
+              desiredStars={desiredStars}
               setStarLevel={handleSetStarLevel}
               toggleStarUnlock={handleToggleStarUnlock}
+              toggleDesiredStar={handleToggleDesiredStar}
               starUpgradeCapBonus={globalStats.starUpgradeCapBonus}
+              starFloors={starFloors}
+              recommendations={recommendations}
+              optTarget={optTarget}
+              stats={calculatedStats}
+              veinsNeeded={veinsNeeded}
+              hiddenVeins={hiddenVeins}
+              toggleHiddenVein={handleToggleHiddenVein}
             />
           )}
           {activeTab === 'upgrades' && (
@@ -477,12 +521,19 @@ function App() {
               contracts={CONTRACTS}
               contractLevels={contractLevels}
               setContractLevel={handleSetContractLevel}
+              setContractLevels={setContractLevels}
               recommendations={recommendations}
               optTarget={optTarget}
               contractUpgradeCapIncrease={globalStats.contractUpgradeCapIncrease || 0}
               currentReg={calculatedStats.regularStarYieldPerHour}
               currentSuper={calculatedStats.superStarYieldPerHour}
               currentVein={veinStats?.totalIncomePerHour || 0}
+              starLevels={starLevels}
+              starUnlocked={starUnlocked}
+              upgradeLevels={upgradeLevels}
+              globalStats={globalStats}
+              veinConfig={veinConfig}
+              setGlobalStat={handleSetGlobalStat}
             />
           )}
           {activeTab === 'veins' && (

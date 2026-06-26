@@ -1,0 +1,77 @@
+<USER_REQUEST>
+I usually farm stars at the floor where it spawn. The floor changes at xx:00 and xx:30 on the clock, i.e., every 30 minutes, but I can skip the floor change by exiting my game before it happens. Thus, I tend to try to cycle through the star spawn set until desirable stars are align with my desirable veins. Using the star floors data, I want to see which star should I farm with the veins that I need according to the best upgrades. I want to see the stars available for each upgrade. I also want an option, 'desire', beside my stars so that I can tell my app what stars I desire so it filter and shows the coresponding veins it can spawn. Anyway, I just want to optimize my vein and star gains, right now I am optimizing to get more stars yield, so stars that boost star or super star yield is ideal.
+
+Star floors:"
+===Stars Floors (Sorted by floor)===
+The following table instead sorts by floor, to easily tell which floor you might want to camp on for desirable stars when not following them:
+
+<tabber>World 1=
+{| class="wikitable text-align-center has-backgrounds"
+|+World 1
+|-
+! Vein !! style="width:1em" | Floor !! style="width:1em" | Set 1 !! style="width:1em" | Set 2 !! style="width:1em" | Set 3 !! style="width:1em" | Set 4 !! style="width:1em" |Set 5
+
+|-
+| rowspan=8 | [[File:Stone Vein.png|link=Veins#Stone]]
+|-
+| 2 || [[File:Capricorn.png|24x24px]] || || || ||
+|-
+| 3 || || || || || [[File:Taurus.png|24x24px]]
+|-
+| 4 || || || [[File:Cancer.png|24x24px]] || [[File:Libra.png|24x24px]] ||
+|-
+| 5 || || || [[File:Leo.png|24x24px]] || || [[File:Capricorn.png|24x24px]]
+|-
+| 6 || || [[File:Taurus.png|24x24px]] || || ||
+|-
+| 7 || || || || [[File:Sagittarius.png|24x24px]] ||
+|-
+| 8 || || [[File:Aries.png|24x24px]] || || ||
+|-
+| rowspan=6 | [[File:Magma Vein.png|link=Veins#Magma]]
+|-
+| 9 || [[File:Taurus.png|24x24px]] || || || || [[File:Gemini.png|24x24px]]
+|-
+| 12 || [[File:Aquarius.png|24x24px]] || || [[File:Aries.png|24x24px]] || || [[File:Virgo.png|24x24px]]
+|-
+| 13 || || [[File:Libra.png|24x24px]] || || [[File:Le
+<truncated 5829 bytes>
+!! style="width:1em" | Floor !! style="width:1em" | Debuff !! style="width:1em" | Set 1 !! style="width:1em" | Set 2 !! style="width:1em" | Set 3 !! style="width:1em" | Set 4 !! style="width:1em" |Set 5
+|-
+| rowspan=3 | [[File:Wonderland Vein.png|link=Veins#Wonderland]]
+|-
+| 105 || || [[File:Eridanus.png|24x24px]] || || || || 
+|-
+| 106 || || || [[File:Eridanus.png|24x24px]] || || || 
+|-
+| rowspan=3 | [[File:Pirate Vein.png|link=Veins#Pirate]] 
+|-
+|- style="background: #f002"
+| 110 || [[File:Freebie_Cooldown.png|20x20px|	Freebie rate 0.40x]] || || || [[File:Eridanus.png|24x24px]] || || 
+|-
+|- style="background: #f002"
+| 113 || [[File:Lootbug_Spawn_Rate_Multiplier.png|20x20px|Lootbug spawn 0.35x	]] || || || || [[File:Eridanus.png|24x24px]] || 
+|-
+| rowspan=2 | [[File:Arabian Vein.png|link=Veins#Arabian]] 
+|-
+|- style="background: #f002"
+| 115 || [[File:Fuel.png|20x20px|Fuel depletion 2x]] || || || || || [[File:Eridanus.png|24x24px]]
+|}</tabber>
+"
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-06-24T14:23:10+08:00.
+
+The user's current state is as follows:
+Active Document: /Users/yishenglee/GPainFinder/GObseliskMinerOpt/src/data/upgradeCosts.js (LANGUAGE_JAVASCRIPT)
+Cursor is on line: 1
+Other open documents:
+- /Users/yishenglee/GPainFinder/GObseliskMinerOpt/index.html (LANGUAGE_HTML)
+- /Users/yishenglee/GPainFinder/GObseliskMinerOpt/src/components/StatDashboard.jsx (LANGUAGE_JAVASCRIPT)
+- /Users/yishenglee/GPainFinder/GObseliskMinerOpt/src/data/upgrades.js (LANGUAGE_JAVASCRIPT)
+- /Users/yishenglee/GPainFinder/GObseliskMinerOpt/src/data/upgradeCosts.js (LANGUAGE_JAVASCRIPT)
+- /Users/yishenglee/GPainFinder/GObseliskMinerOpt/src/engine/veinCalculator.js (LANGUAGE_JAVASCRIPT)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from Gemini 3.5 Flash (Low) to Gemini 3.1 Pro (Low). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>

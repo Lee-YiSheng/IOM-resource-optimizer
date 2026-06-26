@@ -9,13 +9,17 @@ export function StatDashboard({
   onUpgradeShop,
   onUpgradeContract,
   veinStats,
-  veinsNeeded
+  veinsNeeded,
+  starFloors,
+  desiredStars = {},
+  starUnlocked = {}
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showOtherPerks, setShowOtherPerks] = useState(false);
   const [showDroneRelic, setShowDroneRelic] = useState(false);
   const [optTarget, setOptTarget] = useState('regular');
   const [hideLocked, setHideLocked] = useState(false);
+  const [contractFilter, setContractFilter] = useState('all');
 
   // Format Helper
   const formatNum = (num) => {
@@ -178,16 +182,82 @@ export function StatDashboard({
                     {sortedUpgrades.map(rec => {
                       const delta = isRegular ? rec.deltaReg : rec.deltaSuper;
                       const pct = currentYield > 0 ? (delta / currentYield) * 100 : 0;
-                      // Compute time-to-upgrade using vein income
-                      const veinIncomeHr = rec.vein && veinStats?.incomeByVeinNameFullTime?.[rec.vein] || 0;
+                      
+                      // Helper to lookup vein income case/space-insensitively
+                      const getVeinIncomeFullTime = (veinName) => {
+                        if (!veinName || !veinStats?.incomeByVeinNameFullTime) return 0;
+                        const norm = veinName.toLowerCase().replace(/\s*vein\s*/g, "").replace(/\s+/g, "").trim();
+                        const foundEntry = Object.entries(veinStats.incomeByVeinNameFullTime).find(([key]) => {
+                          const normKey = key.toLowerCase().replace(/\s*vein\s*/g, "").replace(/\s+/g, "").trim();
+                          return normKey === norm;
+                        });
+                        return foundEntry ? foundEntry[1] : 0;
+                      };
+
+                      // Compute time-to-upgrade using vein income or super star yield
                       let veinTime = 'N/A';
-                      if (veinIncomeHr > 0 && rec.cost > 0) {
-                        const hrs = rec.cost / veinIncomeHr;
-                        const mins = Math.ceil(hrs * 60);
-                        const h = Math.floor(mins / 60);
-                        const m = mins % 60;
-                        veinTime = `${h} h ${m} m`;
+                      if (rec.vein === 'Super Star') {
+                        const ssYield = stats.superStarYieldPerHour || 0;
+                        if (ssYield > 0 && rec.cost > 0) {
+                          const hrs = rec.cost / ssYield;
+                          const mins = Math.ceil(hrs * 60);
+                          const h = Math.floor(mins / 60);
+                          const m = mins % 60;
+                          veinTime = `${h} h ${m} m`;
+                        }
+                      } else {
+                        const veinIncomeHr = getVeinIncomeFullTime(rec.vein);
+                        if (veinIncomeHr > 0 && rec.cost > 0) {
+                          const hrs = rec.cost / veinIncomeHr;
+                          const mins = Math.ceil(hrs * 60);
+                          const h = Math.floor(mins / 60);
+                          const m = mins % 60;
+                          veinTime = `${h} h ${m} m`;
+                        }
                       }
+
+
+                      // Find camping advice (desired/unlocked star fallbacks)
+                      let adviceTitle = '';
+                      let adviceType = 'none';
+                      if (rec.vein && starFloors) {
+                        const normRec = rec.vein.toLowerCase().replace(/\s*vein\s*/g, "").replace(/\s+/g, "").trim();
+                        const floorsForVein = starFloors.filter(f => {
+                          if (!f.vein) return false;
+                          const normF = f.vein.toLowerCase().replace(/\s*vein\s*/g, "").replace(/\s+/g, "").trim();
+                          return normF === normRec;
+                        });
+
+                        const uniqueStars = [];
+                        floorsForVein.forEach(f => {
+                          f.stars.forEach(s => {
+                            if (!uniqueStars.includes(s)) {
+                              uniqueStars.push(s);
+                            }
+                          });
+                        });
+
+                        if (uniqueStars.length > 0) {
+                          const desiredOnVein = uniqueStars.filter(s => desiredStars && desiredStars[s]);
+                          if (desiredOnVein.length > 0) {
+                            const names = desiredOnVein.map(s => s.charAt(0).toUpperCase() + s.slice(1));
+                            adviceTitle = `⭐ Desired: ${names.join(', ')}`;
+                            adviceType = 'desired';
+                          } else {
+                            const unlockedOnVein = uniqueStars.filter(s => starUnlocked && starUnlocked[s]);
+                            if (unlockedOnVein.length > 0) {
+                              const names = unlockedOnVein.map(s => s.charAt(0).toUpperCase() + s.slice(1));
+                              adviceTitle = `🔓 Unlocked: ${names.join(', ')}`;
+                              adviceType = 'unlocked';
+                            } else {
+                              const names = uniqueStars.map(s => s.charAt(0).toUpperCase() + s.slice(1));
+                              adviceTitle = `🔒 Locked: ${names.join(', ')}`;
+                              adviceType = 'locked';
+                            }
+                          }
+                        }
+                      }
+
                       return (
                         <button 
                           key={rec.id} 
@@ -195,7 +265,12 @@ export function StatDashboard({
                           className="suggestion-btn" 
                           onClick={() => onUpgradeShop(rec.id, rec.nextLevel)}
                           title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
-                          style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '2px', padding: '6px 8px' }}
+                          style={{ 
+                            flexDirection: 'column', 
+                            alignItems: 'flex-start', 
+                            gap: '2px', 
+                            padding: '6px 8px'
+                          }}
                         >
                           <div style={{ width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             <span style={{ color: 'var(--color-text-primary)', fontWeight: '500', fontSize: '0.75rem' }}>{rec.name}</span>
@@ -203,7 +278,11 @@ export function StatDashboard({
                               ({rec.currentLevel}→{rec.nextLevel})
                             </span>
                           </div>
-                          <span className="cost-badge" style={{ fontSize: '0.55rem', color: 'var(--color-text-muted)', marginLeft: '4px' }}>
+                          <span className="cost-badge" style={{ 
+                            fontSize: '0.55rem', 
+                            color: 'var(--color-text-muted)', 
+                            marginLeft: '4px'
+                          }}>
                             {formatNum(rec.cost)} {rec.vein}
                           </span>
                           {veinTime !== 'N/A' && (
@@ -214,6 +293,24 @@ export function StatDashboard({
                           <span className="suggestion-delta" style={{ color: isRegular ? 'var(--color-star)' : 'var(--color-superstar)', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>
                             +{formatNum(delta)} ({pct.toFixed(1)}%)
                           </span>
+                          {adviceTitle && (
+                            <span 
+                              style={{ 
+                                fontSize: '0.55rem', 
+                                color: adviceType === 'desired' ? 'var(--color-star)' : adviceType === 'unlocked' ? 'var(--color-text-secondary)' : 'var(--color-text-muted)', 
+                                fontWeight: adviceType === 'desired' ? '600' : 'normal',
+                                marginLeft: '4px', 
+                                whiteSpace: 'nowrap', 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis', 
+                                width: '100%', 
+                                display: 'inline-block' 
+                              }} 
+                              title={adviceTitle}
+                            >
+                              {adviceTitle}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -235,22 +332,40 @@ export function StatDashboard({
             Best Contracts (Top 4)
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1.2fr 1fr 1fr 1fr',
-            gap: '4px',
-            fontSize: '0.65rem',
-            color: 'var(--color-text-muted)',
-            fontWeight: 'bold',
-            borderBottom: '1px solid var(--border-light)',
-            paddingBottom: '4px',
-            marginBottom: '6px',
-            textAlign: 'center'
-          }}>
-            <span style={{ textAlign: 'left' }}>Contract (CP)</span>
-            <span>% Veins/CP</span>
-            <span>% Stars/CP</span>
-            <span>% S.Stars/CP</span>
+          {/* Resource Filter Tabs */}
+          <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+            <button
+              type="button"
+              className={`tab-btn ${contractFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setContractFilter('all')}
+              style={{ flex: 1, padding: '4px 2px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`tab-btn ${contractFilter === 'veins' ? 'active' : ''}`}
+              onClick={() => setContractFilter('veins')}
+              style={{ flex: 1, padding: '4px 2px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}
+            >
+              Veins
+            </button>
+            <button
+              type="button"
+              className={`tab-btn ${contractFilter === 'stars' ? 'active' : ''}`}
+              onClick={() => setContractFilter('stars')}
+              style={{ flex: 1, padding: '4px 2px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}
+            >
+              Stars
+            </button>
+            <button
+              type="button"
+              className={`tab-btn ${contractFilter === 'superStars' ? 'active' : ''}`}
+              onClick={() => setContractFilter('superStars')}
+              style={{ flex: 1, padding: '4px 2px', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border-light)' }}
+            >
+              S.Stars
+            </button>
           </div>
 
           {(() => {
@@ -263,82 +378,132 @@ export function StatDashboard({
               .sort((a, b) => {
                 const aCost = a.cost || 1;
                 const bCost = b.cost || 1;
-                if (isRegular) {
+
+                if (contractFilter === 'veins') {
+                  const aVal = currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0;
+                  const bVal = currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0;
+                  return bVal - aVal;
+                } else if (contractFilter === 'stars') {
                   const aVal = currentReg > 0 ? (a.deltaReg / currentReg) / aCost : 0;
                   const bVal = currentReg > 0 ? (b.deltaReg / currentReg) / bCost : 0;
-                  if (bVal !== aVal) return bVal - aVal;
-                  return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
-                } else {
+                  return bVal - aVal;
+                } else if (contractFilter === 'superStars') {
                   const aVal = currentSuper > 0 ? (a.deltaSuper / currentSuper) / aCost : 0;
                   const bVal = currentSuper > 0 ? (b.deltaSuper / currentSuper) / bCost : 0;
-                  if (bVal !== aVal) return bVal - aVal;
-                  return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
+                  return bVal - aVal;
+                } else {
+                  if (isRegular) {
+                    const aVal = currentReg > 0 ? (a.deltaReg / currentReg) / aCost : 0;
+                    const bVal = currentReg > 0 ? (b.deltaReg / currentReg) / bCost : 0;
+                    if (bVal !== aVal) return bVal - aVal;
+                    return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
+                  } else {
+                    const aVal = currentSuper > 0 ? (a.deltaSuper / currentSuper) / aCost : 0;
+                    const bVal = currentSuper > 0 ? (b.deltaSuper / currentSuper) / bCost : 0;
+                    if (bVal !== aVal) return bVal - aVal;
+                    return (currentVein > 0 ? (b.deltaVein / currentVein) / bCost : 0) - (currentVein > 0 ? (a.deltaVein / currentVein) / aCost : 0);
+                  }
                 }
               })
-              .filter(r => r.deltaReg > 0.0001 || r.deltaSuper > 0.0001 || r.deltaVein > 0.0001)
+              .filter(r => {
+                if (contractFilter === 'veins') return r.deltaVein > 0.0001;
+                if (contractFilter === 'stars') return r.deltaReg > 0.0001;
+                if (contractFilter === 'superStars') return r.deltaSuper > 0.0001;
+                return r.deltaReg > 0.0001 || r.deltaSuper > 0.0001 || r.deltaVein > 0.0001;
+              })
               .slice(0, 4);
 
-            if (sortedContracts.length > 0) {
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {sortedContracts.map(rec => {
-                    const aCost = rec.cost || 1;
-                    const veinEff = currentVein > 0 ? ((rec.deltaVein / currentVein) * 100) / aCost : 0;
-                    const regEff = currentReg > 0 ? ((rec.deltaReg / currentReg) * 100) / aCost : 0;
-                    const superEff = currentSuper > 0 ? ((rec.deltaSuper / currentSuper) * 100) / aCost : 0;
+            const showVeins = contractFilter === 'all' || contractFilter === 'veins';
+            const showStars = contractFilter === 'all' || contractFilter === 'stars';
+            const showSuperStars = contractFilter === 'all' || contractFilter === 'superStars';
+            const gridCols = contractFilter === 'all' ? '1.2fr 1fr 1fr 1fr' : '1.5fr 1fr';
 
-                    return (
-                      <button 
-                        key={rec.id} 
-                        type="button"
-                        className="suggestion-btn" 
-                        onClick={() => onUpgradeContract(rec.id, rec.nextLevel)}
-                        title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
-                        style={{ 
-                          padding: '6px 4px', 
-                          display: 'grid', 
-                          gridTemplateColumns: '1.2fr 1fr 1fr 1fr', 
-                          gap: '4px',
-                          alignItems: 'center',
-                          textAlign: 'center',
-                          fontSize: '0.7rem',
-                          border: '1px solid var(--border-light)',
-                          width: '100%'
-                        }}
-                      >
-                        <div style={{ textAlign: 'left', minWidth: 0 }}>
-                          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500', color: 'var(--color-text-primary)' }}>
-                            {rec.name}
-                          </div>
-                          <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }}>
-                            Lvl {rec.currentLevel}→{rec.nextLevel} ({rec.cost} CP)
-                          </div>
-                        </div>
-                        
-                        {/* Veins/CP */}
-                        <span style={{ color: veinEff > 0 ? 'var(--color-accent-emerald)' : 'var(--color-text-muted)', fontWeight: veinEff > 0 ? '600' : 'normal' }}>
-                          {formatEfficiency(veinEff)}
-                        </span>
-
-                        {/* Stars/CP */}
-                        <span style={{ color: regEff > 0 ? 'var(--color-star)' : 'var(--color-text-muted)', fontWeight: regEff > 0 ? '600' : 'normal' }}>
-                          {formatEfficiency(regEff)}
-                        </span>
-
-                        {/* Super Stars/CP */}
-                        <span style={{ color: superEff > 0 ? 'var(--color-superstar)' : 'var(--color-text-muted)', fontWeight: superEff > 0 ? '600' : 'normal' }}>
-                          {formatEfficiency(superEff)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            }
             return (
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                No contract upgrades available.
-              </div>
+              <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: gridCols,
+                  gap: '4px',
+                  fontSize: '0.65rem',
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 'bold',
+                  borderBottom: '1px solid var(--border-light)',
+                  paddingBottom: '4px',
+                  marginBottom: '6px',
+                  textAlign: 'center'
+                }}>
+                  <span style={{ textAlign: 'left' }}>Contract (CP)</span>
+                  {showVeins && <span>% Veins/CP</span>}
+                  {showStars && <span>% Stars/CP</span>}
+                  {showSuperStars && <span>% S.Stars/CP</span>}
+                </div>
+
+                {sortedContracts.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {sortedContracts.map(rec => {
+                      const aCost = rec.cost || 1;
+                      const veinEff = currentVein > 0 ? ((rec.deltaVein / currentVein) * 100) / aCost : 0;
+                      const regEff = currentReg > 0 ? ((rec.deltaReg / currentReg) * 100) / aCost : 0;
+                      const superEff = currentSuper > 0 ? ((rec.deltaSuper / currentSuper) * 100) / aCost : 0;
+
+                      return (
+                        <button 
+                          key={rec.id} 
+                          type="button"
+                          className="suggestion-btn" 
+                          onClick={() => onUpgradeContract(rec.id, rec.nextLevel)}
+                          title={`Click to upgrade ${rec.name} to Lvl ${rec.nextLevel}`}
+                          style={{ 
+                            padding: '6px 4px', 
+                            display: 'grid', 
+                            gridTemplateColumns: gridCols, 
+                            gap: '4px',
+                            alignItems: 'center',
+                            textAlign: 'center',
+                            fontSize: '0.7rem',
+                            border: '1px solid var(--border-light)',
+                            width: '100%'
+                          }}
+                        >
+                          <div style={{ textAlign: 'left', minWidth: 0 }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500', color: 'var(--color-text-primary)' }}>
+                              {rec.name}
+                            </div>
+                            <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)' }}>
+                              Lvl {rec.currentLevel}→{rec.nextLevel} ({rec.cost} CP)
+                            </div>
+                          </div>
+                          
+                          {/* Veins/CP */}
+                          {showVeins && (
+                            <span style={{ color: veinEff > 0 ? 'var(--color-accent-emerald)' : 'var(--color-text-muted)', fontWeight: veinEff > 0 ? '600' : 'normal' }}>
+                              {formatEfficiency(veinEff)}
+                            </span>
+                          )}
+
+                          {/* Stars/CP */}
+                          {showStars && (
+                            <span style={{ color: regEff > 0 ? 'var(--color-star)' : 'var(--color-text-muted)', fontWeight: regEff > 0 ? '600' : 'normal' }}>
+                              {formatEfficiency(regEff)}
+                            </span>
+                          )}
+
+                          {/* Super Stars/CP */}
+                          {showSuperStars && (
+                            <span style={{ color: superEff > 0 ? 'var(--color-superstar)' : 'var(--color-text-muted)', fontWeight: superEff > 0 ? '600' : 'normal' }}>
+                              {formatEfficiency(superEff)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '8px 0' }}>
+                    No contract upgrades available for this resource target.
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
@@ -541,34 +706,6 @@ export function StatDashboard({
                 className="custom-slider"
                 style={{ width: '100%' }}
               />
-            </div>
-
-            <div className="config-group">
-              <div className="config-label-row">
-                <span>Contract Upgrade Cap Increase:</span>
-                <span className="stat-value">+{globalStats.contractUpgradeCapIncrease || 0}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginTop: '6px' }}>
-                <button
-                  type="button"
-                  className="lvl-btn"
-                  onClick={() => setGlobalStat('contractUpgradeCapIncrease', Math.max(0, (globalStats.contractUpgradeCapIncrease || 0) - 1))}
-                  style={{ width: '26px', height: '26px', fontSize: '0.9rem', borderRadius: '4px' }}
-                >
-                  -
-                </button>
-                <div style={{ flex: 1, textAlign: 'center', fontSize: '0.8rem', color: 'var(--color-text-primary)', fontFamily: 'var(--font-mono)' }}>
-                  +{globalStats.contractUpgradeCapIncrease || 0} levels
-                </div>
-                <button
-                  type="button"
-                  className="lvl-btn"
-                  onClick={() => setGlobalStat('contractUpgradeCapIncrease', (globalStats.contractUpgradeCapIncrease || 0) + 1)}
-                  style={{ width: '26px', height: '26px', fontSize: '0.9rem', borderRadius: '4px' }}
-                >
-                  +
-                </button>
-              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

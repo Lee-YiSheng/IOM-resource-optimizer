@@ -13,7 +13,9 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour, contr
     try {
       const saved = localStorage.getItem('iom_vein_stat_incr');
       if (saved) return JSON.parse(saved);
-    } catch (e) {}
+    } catch {
+      // Ignore local storage read errors
+    }
     return {
       veinSpawnRateMulti: 5,
       veinIncomeMulti: 5,
@@ -30,7 +32,9 @@ export function VeinCalculator({ veinConfig, setVeinConfig, floorsPerHour, contr
   useEffect(() => {
     try {
       localStorage.setItem('iom_vein_stat_incr', JSON.stringify(statIncrements));
-    } catch (e) {}
+    } catch {
+      // Ignore local storage write errors
+    }
   }, [statIncrements]);
 
   const handleStatIncrementChange = (key, value, isChance) => {

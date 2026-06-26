@@ -4,7 +4,7 @@
  * Computes all cumulative perks, upgrade levels, and final star yield rates.
  */
 import { getStarCost } from "../data/starCosts.js";
-import { getUpgradeCost, getUpgradeVein, upgradeCosts } from "../data/upgradeCosts.js";
+import { getUpgradeCost, getUpgradeVein } from "../data/upgradeCosts.js";
 import { getContractCost, CONTRACTS } from "../data/contracts.js";
 import { calculateVeinIncome } from "./veinCalculator.js";
 
