@@ -52,7 +52,10 @@ export function calculateVeinIncome({
   veinmorpherBomb = false,
   floorsPerHour = 172800,
   cardMultiplier = 1.0,
-  contractLevels = {}
+  contractLevels = {},
+  elixirDroneUptimeVeinSpawn = 0,
+  elixirDroneUptimeOre = 0,
+  offlineMode = false
 }) {
   // === Contract Effects ===
   const contractVeinIncomeMult = 1 + (contractLevels.veinIncomeMultiplier || 0) * 0.04;
@@ -67,6 +70,9 @@ export function calculateVeinIncome({
     ? (1 + 0.10 + veinDroneLevel * 0.02)
     : 1.0;
 
+  // ... but we also have Elixir Drone buff for 3x Vein Spawn Rate
+  const elixirSpawnMult = 1 + elixirDroneUptimeVeinSpawn * 2.0;
+
   // Vein Drone Grade: +50% golden vein multi at grade 0, +10% per grade (up to 125)
   // When fueled, multiplies the user's golden vein multi input
   const droneGoldenMulti = veinDroneFueled
@@ -77,10 +83,16 @@ export function calculateVeinIncome({
   const researchMulti = veinResearch2x ? 2.0 : 1.0;
 
   // === Effective spawn rate (before dividing by rarity) ===
-  const effectiveSpawnRate = veinSpawnRateMulti * droneSpawnMulti * researchMulti;
+  const effectiveSpawnRate = veinSpawnRateMulti * droneSpawnMulti * researchMulti * elixirSpawnMult;
 
   // === Effective golden vein multiplier (drone grade boosts golden multi) ===
   const effectiveGoldenMulti = goldenVeinMulti * droneGoldenMulti;
+
+  // === Elixir Drone 2x Ore Buff ===
+  const oreBuffMult = 1 + elixirDroneUptimeOre * 1.0;
+
+  // === Offline Mode Debuff ===
+  const offlineMult = offlineMode ? 0.85 : 1.0;
 
   // === Total floors for proportional income ===
   const totalFloors = 120;
@@ -129,17 +141,17 @@ export function calculateVeinIncome({
       gleamingVeinChance * gleamingVeinMulti;
 
     // Total expected income per vein
-    const expectedIncomePerVein = goldenRainbowLayer * gleamingLayer * effectiveVeinIncomeMulti * cardMultiplier;
+    const expectedIncomePerVein = goldenRainbowLayer * gleamingLayer * effectiveVeinIncomeMulti * cardMultiplier * oreBuffMult;
 
     // --- Income per floor ---
     const incomePerFloor = expectedVeinsPerFloor * expectedIncomePerVein;
 
     // --- Income per hour (full-time farming this vein) ---
-    const incomePerHourFullTime = incomePerFloor * floorsPerHour;
+    const incomePerHourFullTime = incomePerFloor * floorsPerHour * offlineMult;
 
     // --- Proportional income per hour (cycling through all 120 floors) ---
     const floorFraction = numFloorsForVein / totalFloors;
-    const incomePerHourProportional = incomePerFloor * floorsPerHour * floorFraction;
+    const incomePerHourProportional = incomePerFloor * floorsPerHour * floorFraction * offlineMult;
 
     return {
       ...vein,

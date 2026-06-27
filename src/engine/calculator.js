@@ -8,6 +8,86 @@ import { getUpgradeCost, getUpgradeVein } from "../data/upgradeCosts.js";
 import { getContractCost, CONTRACTS } from "../data/contracts.js";
 import { calculateVeinIncome } from "./veinCalculator.js";
 
+export function calculateElixirDroneUptimes(globalStats, gameSpeed) {
+  const elixirDroneFueled = !!globalStats.elixirDroneFueled;
+  if (!elixirDroneFueled) {
+    return {
+      speed: 0,
+      bomb: 0,
+      coal: 0,
+      ore: 0,
+      veinspawn: 0,
+      autocatch: 0,
+      starspawn: 0,
+      exp: 0,
+      superstar: 0,
+      fishing: 0
+    };
+  }
+
+  const level = globalStats.elixirDroneLevel || 0;
+  const grade = globalStats.elixirDroneGrade || 0;
+  const fuelAmount = globalStats.droneFuelAmount || 1;
+
+  const timeBetweenBuffs = Math.max(1, 360 - 15 * level);
+
+  const getEffDuration = (base) => {
+    return base * (1.6 + 0.06 * grade) + (210 + 10.5 * grade) * fuelAmount;
+  };
+
+  // 1. Game Speed Buff (base 120s) - Ignored as per user request
+  const U_speed = 0;
+
+  // Effective game speed scaling for other buffs (using raw gameSpeed since U_speed is 0)
+  const effectiveSpeedScale = Math.max(0.1, gameSpeed);
+
+  // Since 1 of 10 buffs is randomly selected, each buff's uptime is divided by 10.0
+  const divisor = 10.0;
+
+  // 2. 10x Bomb Recharge (base 60s)
+  const U_bomb = Math.min(1.0, getEffDuration(60) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 3. 3x Coal Production Speed (base 240s)
+  const U_coal = Math.min(1.0, getEffDuration(240) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 4. 2x Ore (base 180s)
+  const U_ore = Math.min(1.0, getEffDuration(180) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 5. 3x Vein Spawn Rate (base 180s)
+  const U_veinspawn = Math.min(1.0, getEffDuration(180) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 6. 100% Star Autocatch (base 300s)
+  const U_autocatch = Math.min(1.0, getEffDuration(300) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 7. 2x Star Spawn Rate (base 180s)
+  const U_starspawn = Math.min(1.0, getEffDuration(180) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 8. 3x Experience (base 240s)
+  const U_exp = Math.min(1.0, getEffDuration(240) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 9. 3x Super Star Spawn Rate (base 180s)
+  const U_superstar = Math.min(1.0, getEffDuration(180) / effectiveSpeedScale / timeBetweenBuffs) / divisor;
+
+  // 10. 3x Fishing Tick Speed (base 120s) - Real time only, Obelisk >= 37
+  const obeliskLevel = globalStats.obeliskLevel || 1;
+  const U_fishing = (obeliskLevel >= 37)
+    ? (Math.min(1.0, getEffDuration(120) / timeBetweenBuffs) / divisor)
+    : 0;
+
+  return {
+    speed: U_speed,
+    bomb: U_bomb,
+    coal: U_coal,
+    ore: U_ore,
+    veinspawn: U_veinspawn,
+    autocatch: U_autocatch,
+    starspawn: U_starspawn,
+    exp: U_exp,
+    superstar: U_superstar,
+    fishing: U_fishing
+  };
+}
+
 export function calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels = {} }) {
   // 1. Helper to get levels safely
   const getStarLvl = (id) => starLevels[id] || 0;
@@ -22,7 +102,13 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const baseGameSpeed = globalStats.gameSpeed || 1.0;
   const contractGameSpeedLevel = getContractLvl("baseGameSpeed");
   const contractGameSpeedMult = 1 + contractGameSpeedLevel * 0.01;
-  const gameSpeed = baseGameSpeed * contractGameSpeedMult;
+  const rawGameSpeed = baseGameSpeed * contractGameSpeedMult;
+
+  // Calculate Elixir Drone Uptimes
+  const uptimes = calculateElixirDroneUptimes(globalStats, rawGameSpeed);
+  
+  // Game Speed is affected by the Game Speed Buff (2x)
+  const gameSpeed = rawGameSpeed * (1 + uptimes.speed * 1.0);
   
   const cardMultiplier = globalStats.cardMultiplier || 1.0;
   const manualCatchRate = globalStats.manualCatchRate !== undefined ? globalStats.manualCatchRate : 1.0;
@@ -44,7 +130,7 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const relicSpawnMult = 1 + relicLevel * 0.001;
 
   const starSpawnBuff2x = !!globalStats.starSpawnBuff2x;
-  const starSpawnBuffMult = starSpawnBuff2x ? 2.0 : 1.0;
+  const starSpawnBuffMult = (starSpawnBuff2x ? 2.0 : 1.0) * (1 + uptimes.starspawn * 1.0);
 
   const starSpawnRateMult = stargazingStarSpawnMult * droneSpawnMult * relicSpawnMult * starSpawnBuffMult;
   const starSpawnChance = 0.02 * starSpawnRateMult;
@@ -61,7 +147,7 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const contractSuperStarMult = 1 + contractLevel * 0.03;
   
   const superStarSpawnBuff3x = !!globalStats.superStarSpawnBuff3x;
-  const superStarSpawnBuffMult = superStarSpawnBuff3x ? 3.0 : 1.0;
+  const superStarSpawnBuffMult = (superStarSpawnBuff3x ? 3.0 : 1.0) * (1 + uptimes.superstar * 2.0);
 
   const superStarSpawnRateMult = stargazingSuperStarSpawnMult * contractSuperStarMult * superStarSpawnBuffMult;
   
@@ -76,7 +162,13 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const autoCatchPerk = getStarLvl("taurus") * 0.02;
   const autoCatchUpgrade = getUpgradeLvl("autoCatchStars") * 0.04;
   const totalAutoCatchChance = Math.min(1.0, autoCatchPerk + autoCatchUpgrade);
-  const totalCatchRate = droneFueled ? 1.0 : (totalAutoCatchChance + (1.0 - totalAutoCatchChance) * manualCatchRate);
+  
+  // Note [2] logic
+  const hasHighAutocatch = totalAutoCatchChance >= 0.75;
+  const effectiveUptimesAutocatch = hasHighAutocatch ? 0 : uptimes.autocatch;
+  
+  const baseTotalCatchRate = droneFueled ? 1.0 : (totalAutoCatchChance + (1.0 - totalAutoCatchChance) * manualCatchRate);
+  const totalCatchRate = (1 - effectiveUptimesAutocatch) * baseTotalCatchRate + effectiveUptimesAutocatch * 1.0;
 
   // 6. Expected Multi-Spawns
   const doubleStarChance = getUpgradeLvl("doubleStarChance") * 0.05;
@@ -149,8 +241,9 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
   const totalAllStarMulti = 1 + allStarMultiPerk + allStarMultiUpgrade;
 
   // 9. Final Hourly Yields
-  const baseRegularYield = floorsPerHour * starSpawnChance * expectedRegularStarsPerSpawn * expectedTotalStarMulti * totalCatchRate * totalAllStarMulti * cardMultiplier;
-  const baseSuperYield = floorsPerHour * superStarSpawnChance * expectedSuperStarsPerSpawn * expectedTotalSuperMulti * totalCatchRate * totalAllStarMulti * cardMultiplier;
+  const offlineMult = globalStats.offlineMode ? 0.85 : 1.0;
+  const baseRegularYield = floorsPerHour * starSpawnChance * expectedRegularStarsPerSpawn * expectedTotalStarMulti * totalCatchRate * totalAllStarMulti * cardMultiplier * offlineMult;
+  const baseSuperYield = floorsPerHour * superStarSpawnChance * expectedSuperStarsPerSpawn * expectedTotalSuperMulti * totalCatchRate * totalAllStarMulti * cardMultiplier * offlineMult;
 
   const regularStarYieldPerHour = baseRegularYield;
   const superStarYieldPerHour = baseSuperYield;
@@ -159,18 +252,18 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
 
   // 10. Secondary Perks Display Data
   const activeOtherPerks = {
-    veinSpawnRate: getStarLvl("aries") * 3,
+    veinSpawnRate: (getStarLvl("aries") * 3) * (1 + uptimes.veinspawn * 2.0),
     goldenVeinChance: getStarLvl("aries") * 1 + getContractLvl("goldenVeinChance") * 1,
     pickaxeDamage: getStarLvl("taurus") * 12 + getStarLvl("scorpio") * 15 + getContractLvl("pickaxeDamage") * 15 + getContractLvl("pickaxeDamagePerContract") * 1,
     goldenFloorMulti: (1 + getStarLvl("gemini") * 0.02) * (1 + getContractLvl("goldenFloorMultiplier") * 0.03),
     doubleContractPointChance: getStarLvl("cancer") * 1,
     contractUpgradeCost: getStarLvl("cancer") * -1,
     workshopCap: getStarLvl("leo") * 1,
-    bombRechargeRate: getStarLvl("virgo") * 1 + getContractLvl("bombRechargeRate") * 3,
+    bombRechargeRate: (getStarLvl("virgo") * 1 + getContractLvl("bombRechargeRate") * 3) * (1 + uptimes.bomb * 9.0),
     prestigePointsGain: getStarLvl("libra") * 5 + getContractLvl("prestigePointGain") * 10,
     tripleLootbugChance: getStarLvl("libra") * 1,
     lootbugSpawnRate: getStarLvl("sagittarius") * 2,
-    experienceGain: getStarLvl("capricorn") * 15 + getContractLvl("expGain") * 10,
+    experienceGain: (getStarLvl("capricorn") * 15 + getContractLvl("expGain") * 10) * (1 + uptimes.exp * 2.0) * (hasHighAutocatch ? (1 + uptimes.autocatch * 2.0) : 1.0),
     itemDuration: getStarLvl("capricorn") * 1,
     barCraftCosts: getStarLvl("aquarius") * -1,
     goldenLootbugChance: getStarLvl("aquarius") * 1,
@@ -199,6 +292,12 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
     oreSellPrice: getContractLvl("oreSellPrice") * 15,
     veinIncomeMultiplier: getContractLvl("veinIncomeMultiplier") * 4,
     ultraCritChance: getContractLvl("ultraCritChance") * 1,
+    
+    // Elixir Buffs specific multipliers to list on the dashboard
+    coalProductionSpeedMultiplier: 1 + uptimes.coal * 2.0,
+    fishingTickSpeedMultiplier: 1 + uptimes.fishing * 2.0,
+    oreMultiplier: 1 + uptimes.ore * 1.0,
+    averageGameSpeedBuff: 1 + uptimes.speed * 1.0
   };
 
   return {
@@ -223,7 +322,8 @@ export function calculateStats({ starLevels, starUnlocked, upgradeLevels, global
     superStarYieldPerHour,
     yieldPerStarType,
     numEnabledStars,
-    activeOtherPerks
+    activeOtherPerks,
+    elixirDroneUptimes: uptimes
   };
 }
 
@@ -267,6 +367,10 @@ export function getRecommendations({
       goldenVeinChance: effectiveGoldenChance,
       floorsPerHour: stats.floorsPerHour,
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+      contractLevels: cLevels,
+      elixirDroneUptimeVeinSpawn: stats.elixirDroneUptimes?.veinspawn || 0,
+      elixirDroneUptimeOre: stats.elixirDroneUptimes?.ore || 0,
+      offlineMode: globalStats.offlineMode
     });
     return vStats.totalIncomePerHour;
   };

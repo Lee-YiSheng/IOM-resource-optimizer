@@ -342,30 +342,8 @@ export function ContractList({
                     fontSize: '0.9rem'
                   }}
                 />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Contract Upgrade Cap Increase
-                </label>
-                <input 
-                  type="number"
-                  min="0"
-                  value={contractUpgradeCapIncrease}
-                  onChange={(e) => setGlobalStat('contractUpgradeCapIncrease', Math.max(0, parseInt(e.target.value) || 0))}
-                  style={{ 
-                    width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
-                    borderRadius: '6px',
-                    fontSize: '0.9rem'
-                  }}
-                  title="Increases the base cap of all Contract Upgrades (e.g. +2 levels)"
-                />
-              </div>
             </div>
+          </div>
 
             {/* Chances grid */}
             <div style={{ 
@@ -716,17 +694,42 @@ export function ContractList({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input 
-            type="checkbox"
-            id="hide-maxed-contracts"
-            className="star-checkbox"
-            checked={hideMaxed}
-            onChange={(e) => setHideMaxed(e.target.checked)}
-          />
-          <label htmlFor="hide-maxed-contracts" style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
-            Hide Maxed Contracts
-          </label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+              Contract Cap Increase:
+            </label>
+            <input 
+              type="number"
+              min="0"
+              value={contractUpgradeCapIncrease}
+              onChange={(e) => setGlobalStat('contractUpgradeCapIncrease', Math.max(0, parseInt(e.target.value) || 0))}
+              style={{ 
+                width: '60px',
+                background: 'rgba(0,0,0,0.3)', 
+                border: '1px solid rgba(255,255,255,0.1)', 
+                color: '#fff', 
+                padding: '4px 8px', 
+                borderRadius: '4px',
+                fontSize: '0.85rem',
+                textAlign: 'center'
+              }}
+              title="Increases the base cap of all Contract Upgrades (e.g. +2 levels)"
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input 
+              type="checkbox"
+              id="hide-maxed-contracts"
+              className="star-checkbox"
+              checked={hideMaxed}
+              onChange={(e) => setHideMaxed(e.target.checked)}
+            />
+            <label htmlFor="hide-maxed-contracts" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              Hide Maxed Contracts
+            </label>
+          </div>
         </div>
       </div>
 

@@ -31,7 +31,7 @@ export function calculateExpectedCPPerContract({
 /**
  * Helper to compute vein income with current config and contract levels.
  */
-function getVeinIncomeForOptimizer({ veinConfig, stats, cLevels }) {
+function getVeinIncomeForOptimizer({ veinConfig, stats, cLevels, globalStats = {} }) {
   if (!veinConfig || Object.keys(veinConfig).length === 0) return 0;
   
   const contractVeinIncomeLevel = cLevels.veinIncomeMultiplier || 0;
@@ -52,6 +52,10 @@ function getVeinIncomeForOptimizer({ veinConfig, stats, cLevels }) {
     goldenVeinChance: effectiveGoldenChance,
     floorsPerHour: stats.floorsPerHour,
     cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
+    contractLevels: cLevels,
+    elixirDroneUptimeVeinSpawn: stats.elixirDroneUptimes?.veinspawn || 0,
+    elixirDroneUptimeOre: stats.elixirDroneUptimes?.ore || 0,
+    offlineMode: globalStats.offlineMode
   });
   return vStats.totalIncomePerHour;
 }
@@ -84,11 +88,11 @@ export function optimizeContracts({
   // Calculate baseline yields (pre-contract or at start levels)
   const baseStats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: cLevels });
   const baseSSYield = baseStats.superStarYieldPerHour || 1.0;
-  const baseVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: baseStats, cLevels }) || 1.0;
+  const baseVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: baseStats, cLevels, globalStats }) || 1.0;
 
   const getScore = (levels) => {
     const stats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: levels });
-    const veinYield = getVeinIncomeForOptimizer({ veinConfig, stats, cLevels: levels });
+    const veinYield = getVeinIncomeForOptimizer({ veinConfig, stats, cLevels: levels, globalStats });
     
     const ssGain = stats.superStarYieldPerHour / baseSSYield;
     const veinGain = veinYield / baseVeinYield;
@@ -200,7 +204,7 @@ export function optimizeContracts({
   // Calculate final gains
   const finalStats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: cLevels });
   const finalSSYield = finalStats.superStarYieldPerHour;
-  const finalVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: finalStats, cLevels });
+  const finalVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: finalStats, cLevels, globalStats });
 
   return {
     recommendedLevels: cLevels,

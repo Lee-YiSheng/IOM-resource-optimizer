@@ -105,6 +105,13 @@ function App() {
     athenaIdolLevel: 0,
     contractLevel: 0,
     ctrlFUnlocked: false,
+    offlineMode: false,
+    obeliskLevel: 1,
+    droneFuelAmount: 1,
+    droneFuelDurationMultiplierLevel: 0,
+    elixirDroneFueled: false,
+    elixirDroneLevel: 0,
+    elixirDroneGrade: 0,
   };
   const [globalStats, setGlobalStats] = useState(() => 
     getInitialState('iom_global_stats', defaultGlobalStats)
@@ -344,8 +351,11 @@ function App() {
       floorsPerHour: calculatedStats.floorsPerHour,
       cardMultiplier: veinConfig.veinCardMultiplier || 1.0,
       contractLevels,
+      elixirDroneUptimeVeinSpawn: calculatedStats.elixirDroneUptimes?.veinspawn || 0,
+      elixirDroneUptimeOre: calculatedStats.elixirDroneUptimes?.ore || 0,
+      offlineMode: globalStats.offlineMode
     });
-  }, [veinConfig, calculatedStats.floorsPerHour, contractLevels]);
+  }, [veinConfig, calculatedStats.floorsPerHour, contractLevels, calculatedStats.elixirDroneUptimes, globalStats.offlineMode]);
 
   const veinsNeeded = useMemo(() => {
     const needed = {};
@@ -484,6 +494,7 @@ function App() {
           setOptTarget={setOptTarget}
           desiredStars={desiredStars}
           starUnlocked={starUnlocked}
+          veinConfig={veinConfig}
         />
 
         {/* Right Active configuration view */}

@@ -12,7 +12,8 @@ export function StatDashboard({
   veinsNeeded,
   starFloors,
   desiredStars = {},
-  starUnlocked = {}
+  starUnlocked = {},
+  veinConfig = {}
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showOtherPerks, setShowOtherPerks] = useState(false);
@@ -531,6 +532,15 @@ export function StatDashboard({
 
       <div>
         <h2 className="dashboard-section-title">Active Buffs</h2>
+        <div className="stat-row" style={{ padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px', marginBottom: '6px' }}>
+          <span className="stat-label" style={{ color: 'var(--color-accent-violet)' }}>Offline Mode (0.85x):</span>
+          <input 
+            type="checkbox" 
+            className="star-checkbox"
+            checked={!!globalStats.offlineMode}
+            onChange={(e) => setGlobalStat('offlineMode', e.target.checked)}
+          />
+        </div>
         <div className="stat-row" style={{ padding: '4px 0' }}>
           <span className="stat-label">2x Star Spawn Buff:</span>
           <input 
@@ -566,6 +576,103 @@ export function StatDashboard({
             checked={!!globalStats.ctrlFUnlocked}
             onChange={(e) => setGlobalStat('ctrlFUnlocked', e.target.checked)}
           />
+        </div>
+        <div className="stat-row" style={{ padding: '4px 0' }}>
+          <span className="stat-label">Fuel Elixir Drone:</span>
+          <input 
+            type="checkbox" 
+            className="star-checkbox"
+            checked={!!globalStats.elixirDroneFueled}
+            onChange={(e) => setGlobalStat('elixirDroneFueled', e.target.checked)}
+          />
+        </div>
+
+        {/* Global Drone Fuel configuration */}
+        <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--color-text-secondary)', marginBottom: '6px' }}>Drone Fuel Settings</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+            <div>
+              <label style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Fuel Amount:</label>
+              <input 
+                type="number" 
+                min="1" 
+                value={globalStats.droneFuelAmount || 1}
+                onChange={(e) => setGlobalStat('droneFuelAmount', Math.max(1, parseInt(e.target.value) || 1))}
+                className="custom-number-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Fuel Dur Lvl (0-100):</label>
+              <input 
+                type="number" 
+                min="0" 
+                max="100"
+                value={globalStats.droneFuelDurationMultiplierLevel || 0}
+                onChange={(e) => setGlobalStat('droneFuelDurationMultiplierLevel', Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                className="custom-number-input"
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+
+          {/* Fuel calculations */}
+          {(() => {
+            const activeDrones = (globalStats.droneFueled ? 1 : 0) + 
+                                 (veinConfig?.veinDroneFueled ? 1 : 0) + 
+                                 (globalStats.elixirDroneFueled ? 1 : 0);
+            const fuelAmount = globalStats.droneFuelAmount || 1;
+            const fuelDurLvl = globalStats.droneFuelDurationMultiplierLevel || 0;
+            const elixirDroneGrade = globalStats.elixirDroneGrade || 0;
+
+            const baseDurationHrs = fuelAmount * (1 + fuelDurLvl * 0.1);
+            
+            const elixirDurationPerFuel = (210 + 10.5 * elixirDroneGrade) * (1.6 + 0.06 * elixirDroneGrade);
+            const elixirDurationSecs = elixirDurationPerFuel * fuelAmount * (1 + fuelDurLvl * 0.1);
+            
+            const formatElixirDuration = (secs) => {
+              if (secs < 3600) {
+                const m = Math.floor(secs / 60);
+                const s = Math.round(secs % 60);
+                return `${m}m ${s}s`;
+              }
+              return `${(secs / 3600).toFixed(1)} hrs`;
+            };
+
+            const gemCost = activeDrones * fuelAmount * 5;
+
+            return (
+              <div style={{ fontSize: '0.7rem', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Active Drones:</span>
+                  <span style={{ color: '#fff', fontWeight: 'bold' }}>{activeDrones}</span>
+                </div>
+                {globalStats.droneFueled && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Starburst Drone:</span>
+                    <span style={{ color: 'var(--color-accent-teal)', fontWeight: 'bold' }}>{baseDurationHrs.toFixed(1)} hrs</span>
+                  </div>
+                )}
+                {veinConfig?.veinDroneFueled && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Vein Drone:</span>
+                    <span style={{ color: 'var(--color-accent-teal)', fontWeight: 'bold' }}>{baseDurationHrs.toFixed(1)} hrs</span>
+                  </div>
+                )}
+                {globalStats.elixirDroneFueled && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Elixir Drone:</span>
+                    <span style={{ color: 'var(--color-accent-teal)', fontWeight: 'bold' }}>{formatElixirDuration(elixirDurationSecs)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '4px', marginTop: '2px' }}>
+                  <span style={{ color: 'var(--color-text-muted)' }}>Gem Cost:</span>
+                  <span style={{ color: 'var(--color-superstar)', fontWeight: 'bold' }}>{gemCost} 💎</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -647,6 +754,31 @@ export function StatDashboard({
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
             Catch rate of stars not automatically caught.
+          </div>
+        </div>
+
+        <div className="config-group" style={{ marginTop: '8px', marginBottom: '8px' }}>
+          <div className="config-label-row">
+            <span>Obelisk Level:</span>
+            <span className="stat-value highlight">Lvl {globalStats.obeliskLevel || 1}</span>
+          </div>
+          <div className="input-slider-container">
+            <input 
+              type="range" 
+              min="1" 
+              max="100" 
+              step="1" 
+              value={globalStats.obeliskLevel || 1}
+              onChange={(e) => setGlobalStat('obeliskLevel', parseInt(e.target.value) || 1)}
+              className="custom-slider"
+            />
+            <input 
+              type="number" 
+              min="1"
+              value={globalStats.obeliskLevel || 1}
+              onChange={(e) => setGlobalStat('obeliskLevel', parseInt(e.target.value) || 1)}
+              className="custom-number-input"
+            />
           </div>
         </div>
 
@@ -954,6 +1086,68 @@ export function StatDashboard({
 
             <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '8px', marginTop: '8px' }}>
               <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600', display: 'block', marginBottom: '8px' }}>
+                Elixir Drone
+              </span>
+
+              {/* Elixir Drone Level */}
+              <div className="config-group">
+                <div className="config-label-row">
+                  <span>Elixir Drone Level:</span>
+                  <span className="stat-value">Level {globalStats.elixirDroneLevel || 0}</span>
+                </div>
+                <div className="input-slider-container">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="15" 
+                    step="1" 
+                    value={globalStats.elixirDroneLevel || 0}
+                    onChange={(e) => setGlobalStat('elixirDroneLevel', parseInt(e.target.value) || 0)}
+                    className="custom-slider"
+                  />
+                  <input 
+                    type="number"
+                    value={globalStats.elixirDroneLevel || 0}
+                    onChange={(e) => setGlobalStat('elixirDroneLevel', parseInt(e.target.value) || 0)}
+                    className="custom-number-input"
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  Buff Cooldown: {360 - 15 * (globalStats.elixirDroneLevel || 0)}s (Max Level: 15)
+                </div>
+              </div>
+
+              {/* Elixir Drone Grade */}
+              <div className="config-group" style={{ marginTop: '8px' }}>
+                <div className="config-label-row">
+                  <span>Elixir Drone Grade:</span>
+                  <span className="stat-value">Grade {globalStats.elixirDroneGrade || 0}</span>
+                </div>
+                <div className="input-slider-container">
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    step="1" 
+                    value={globalStats.elixirDroneGrade || 0}
+                    onChange={(e) => setGlobalStat('elixirDroneGrade', parseInt(e.target.value) || 0)}
+                    className="custom-slider"
+                  />
+                  <input 
+                    type="number"
+                    value={globalStats.elixirDroneGrade || 0}
+                    onChange={(e) => setGlobalStat('elixirDroneGrade', parseInt(e.target.value) || 0)}
+                    className="custom-number-input"
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  +{60 + 6 * (globalStats.elixirDroneGrade || 0)}% Duration, +{210 + 10.5 * (globalStats.elixirDroneGrade || 0)}s per fuel
+                </div>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '8px', marginTop: '8px' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', fontWeight: '600', display: 'block', marginBottom: '8px' }}>
                 Primal Meat Item
               </span>
 
@@ -1025,13 +1219,22 @@ export function StatDashboard({
               let suffix = "%";
               if (key === "workshopCap" || key === "petLevelCap" || key === "bankedFreebieCap" || key === "bankedLootbugCap" || key === "cardGradeCaps") {
                 suffix = "";
-              } else if (key === "goldenFloorMulti" || key === "rainbowFloorMulti" || key === "polychromeOreCardMulti") {
+              } else if (
+                key === "goldenFloorMulti" || 
+                key === "rainbowFloorMulti" || 
+                key === "polychromeOreCardMulti" ||
+                key === "coalProductionSpeedMultiplier" ||
+                key === "fishingTickSpeedMultiplier" ||
+                key === "oreMultiplier" ||
+                key === "averageGameSpeedBuff"
+              ) {
                 suffix = "x";
               }
 
-              const displayVal = key === "goldenFloorMulti" 
+              const isMult = suffix === "x";
+              const displayVal = isMult
                 ? `${val.toFixed(2)}x`
-                : `${val > 0 && suffix !== "x" ? '+' : ''}${val.toFixed(2).replace(/\.00$/, '')}${suffix}`;
+                : `${val > 0 ? '+' : ''}${val.toFixed(2).replace(/\.00$/, '')}${suffix}`;
 
               return (
                 <div key={key} className="active-stat-item">
