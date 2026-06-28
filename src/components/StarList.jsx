@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { VEINS } from '../data/veins';
+import { getStarCost } from '../data/starCosts';
 
 const STAR_ORDER_INFO = [
   { index: 1, name: "Aries (1st)" },
@@ -10,30 +11,30 @@ const STAR_ORDER_INFO = [
   { index: 6, name: "Cancer - Aquarius (6th)" },
   { index: 7, name: "Cancer - Aquarius (7th)" },
   { index: 8, name: "Cancer - Aquarius (8th)" },
-  { index: 9, name: "Cancer - Aquarius (9th)" },
-  { index: 10, name: "Cancer - Aquarius (10th)" },
-  { index: 11, name: "Cancer - Aquarius (11th)" },
-  { index: 12, name: "Pisces (12th)" },
+  { index: 9, name: "Leo (9th)" },
+  { index: 10, name: "Virgo (10th)" },
+  { index: 11, name: "Libra (11th)" },
+  { index: 12, name: "Scorpio (12th)" },
   { index: 13, name: "Ophiuchus (13th)" },
-  { index: 14, name: "Orion (14th)" },
-  { index: 15, name: "Hercules (15th)" },
-  { index: 16, name: "Draco (16th)" },
-  { index: 17, name: "Cetus (17th)" },
-  { index: 18, name: "Phoenix (18th)" },
-  { index: 19, name: "Eridanus (19th)" },
+  { index: 14, name: "Sagittarius (14th)" },
+  { index: 15, name: "Capricorn (15th)" },
+  { index: 16, name: "Aquarius (16th)" },
+  { index: 17, name: "Pisces (17th)" },
+  { index: 18, name: "Orion (18th)" },
+  { index: 19, name: "Draco (19th)" },
+  { index: 20, name: "Hercules (20th)" },
+  { index: 21, name: "Cetus (21st)" },
+  { index: 22, name: "Phoenix (22nd)" },
+  { index: 23, name: "Eridanus (23rd)" }
 ];
 
-const getGemsNeeded = (current, target) => {
-  let gems = 0;
-  for (let n = current; n < target; n++) {
-    if (n === 0) {
-      gems += 1;
-    } else {
-      gems += 250 * (n + 1);
-    }
+function getGemsNeeded(unlockedCount, targetIndex) {
+  let needed = 0;
+  for (let i = unlockedCount + 1; i <= targetIndex; i++) {
+    needed += 250 * i;
   }
-  return gems;
-};
+  return needed;
+}
 
 const getStarOrderLabel = (stars, starId) => {
   const idx = stars.findIndex(s => s.id === starId);
@@ -57,12 +58,38 @@ export function StarList({
   starFloors,
   recommendations,
   optTarget,
+  stats,
   veinsNeeded = {},
   hiddenVeins = {},
   toggleHiddenVein
 }) {
-  const [hideMaxed, setHideMaxed] = useState(false);
+  const computeTime = (cost, yieldPerHour) => {
+    if (yieldPerHour <= 0) return "N/A";
+    const totalHours = cost / yieldPerHour;
+    const totalMinutes = Math.round(totalHours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h === 0) return `${m}m`;
+    return `${h}h ${m}m`;
+  };
+
+  const [hideMaxed, setHideMaxed] = useState(() => {
+    const saved = localStorage.getItem('iom_stars_hide_maxed');
+    return saved ? saved === 'true' : false;
+  });
   const [targetStarIndex, setTargetStarIndex] = useState(12);
+  const [collapseVeinFloors, setCollapseVeinFloors] = useState(() => {
+    const saved = localStorage.getItem('iom_stars_collapse_vein_floors');
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('iom_stars_hide_maxed', hideMaxed);
+  }, [hideMaxed]);
+
+  useEffect(() => {
+    localStorage.setItem('iom_stars_collapse_vein_floors', collapseVeinFloors);
+  }, [collapseVeinFloors]);
 
   const filteredStars = hideMaxed 
     ? stars.filter(star => {
@@ -202,9 +229,20 @@ export function StarList({
 
       {sortedVeins.length > 0 && (
         <div className="glass-panel" style={{ padding: '20px' }}>
-          <h3 className="dashboard-section-title" style={{ fontSize: '1rem', marginBottom: '16px', borderBottom: '1px dashed var(--border-light)', paddingBottom: '8px' }}>
-            ⛏️ Vein Floors
+          <h3 className="dashboard-section-title" style={{ fontSize: '1rem', marginBottom: '16px', borderBottom: '1px dashed var(--border-light)', paddingBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>⛏️ Vein Floors</span>
+            <button 
+              type="button" 
+              className="tab-btn" 
+              onClick={() => setCollapseVeinFloors(!collapseVeinFloors)}
+              style={{ padding: '2px 10px', fontSize: '0.75rem', borderRadius: '15px', color: 'var(--color-accent-teal)', borderColor: 'rgba(0, 188, 212, 0.3)' }}
+            >
+              {collapseVeinFloors ? 'Expand' : 'Collapse'}
+            </button>
           </h3>
+
+          {!collapseVeinFloors && (
+            <>
 
           {/* Hidden Veins Control Bar */}
           {(() => {
@@ -423,7 +461,9 @@ export function StarList({
                   </div>
                 );
               })}
-          </div>
+            </div>
+          </>
+          )}
         </div>
       )}
 
@@ -445,6 +485,13 @@ export function StarList({
           const isUnlocked = !!starUnlocked[star.id];
           const currentLevel = starLevels[star.id] || 0;
           const maxLevel = star.maxLevel + starUpgradeCapBonus;
+
+          let cumulativeCost = 0;
+          for (let lvl = currentLevel + 1; lvl <= maxLevel; lvl++) {
+            cumulativeCost += getStarCost(star.id, lvl);
+          }
+          const yieldPerHour = stats?.regularStarYieldPerHour || 0;
+          const timeToMaxStr = computeTime(cumulativeCost, yieldPerHour);
 
           return (
             <div 
@@ -491,6 +538,12 @@ export function StarList({
                     </div>
                   );
                 })}
+                {currentLevel < maxLevel && (
+                  <div className="perk-item" style={{ borderTop: '1px dashed rgba(255,255,255,0.06)', paddingTop: '4px', marginTop: '4px' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Time to Max</span>
+                    <span className="perk-val" style={{ color: 'var(--color-accent-teal)', fontWeight: 'bold' }}>{timeToMaxStr}</span>
+                  </div>
+                )}
               </div>
 
               <div className="level-controls">

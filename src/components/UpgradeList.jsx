@@ -1,9 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function UpgradeList({ upgrades, upgradeLevels, setUpgradeLevel, trackedUpgrades, toggleTrackUpgrade }) {
-  const [hideMaxed, setHideMaxed] = useState(false);
+  const [hideMaxed, setHideMaxed] = useState(() => {
+    const saved = localStorage.getItem('iom_upgrades_hide_maxed');
+    return saved ? saved === 'true' : false;
+  });
   const telescopeLevel = upgradeLevels.upgradeTelescope || 0;
   const capperUpperLevel = upgradeLevels.capperUpper || 0;
+
+  useEffect(() => {
+    localStorage.setItem('iom_upgrades_hide_maxed', hideMaxed);
+  }, [hideMaxed]);
 
   const filteredUpgrades = hideMaxed 
     ? upgrades.filter(upgrade => {

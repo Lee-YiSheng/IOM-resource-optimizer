@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { getContractCost } from '../data/contracts';
 import { calculateExpectedCPPerContract, optimizeContracts } from '../engine/contractOptimizer';
 
-export function ContractList({ 
-  contracts, 
-  contractLevels, 
-  setContractLevel, 
+export function ContractList({
+  contracts,
+  contractLevels,
+  setContractLevel,
   setContractLevels,
-  recommendations, 
+  recommendations,
   optTarget,
   contractUpgradeCapIncrease = 0,
   currentReg = 0,
@@ -21,7 +21,10 @@ export function ContractList({
   setGlobalStat
 }) {
   const [activeWorld, setActiveWorld] = useState('all');
-  const [hideMaxed, setHideMaxed] = useState(false);
+  const [hideMaxed, setHideMaxed] = useState(() => {
+    const saved = localStorage.getItem('iom_contracts_hide_maxed');
+    return saved ? saved === 'true' : false;
+  });
 
   // Optimizer Inputs State
   const [showOptimizer, setShowOptimizer] = useState(() => {
@@ -73,10 +76,36 @@ export function ContractList({
     return saved ? parseFloat(saved) : 0;
   });
 
+  const [contractOptTarget, setContractOptTarget] = useState(() => {
+    const saved = localStorage.getItem('iom_opt_contract_opt_target');
+    return saved || 'balanced';
+  });
+  const [goldenFloorChance, setGoldenFloorChance] = useState(() => {
+    const saved = localStorage.getItem('iom_opt_golden_floor_chance');
+    return saved ? parseFloat(saved) : 0;
+  });
+  const [rainbowFloorChance, setRainbowFloorChance] = useState(() => {
+    const saved = localStorage.getItem('iom_opt_rainbow_floor_chance');
+    return saved ? parseFloat(saved) : 0;
+  });
 
   const [optResult, setOptResult] = useState(null);
 
+  useEffect(() => {
+    localStorage.setItem('iom_contracts_hide_maxed', hideMaxed);
+  }, [hideMaxed]);
+
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('iom_opt_contract_opt_target', contractOptTarget);
+  }, [contractOptTarget]);
+  useEffect(() => {
+    localStorage.setItem('iom_opt_golden_floor_chance', goldenFloorChance);
+  }, [goldenFloorChance]);
+  useEffect(() => {
+    localStorage.setItem('iom_opt_rainbow_floor_chance', rainbowFloorChance);
+  }, [rainbowFloorChance]);
+
   useEffect(() => {
     localStorage.setItem('iom_opt_show_optimizer', showOptimizer);
   }, [showOptimizer]);
@@ -160,16 +189,13 @@ export function ContractList({
       ssWeight,
       veinWeight,
       fromScratch,
-      currentContractLevels: contractLevels
+      currentContractLevels: contractLevels,
+      optTarget: contractOptTarget,
+      goldenFloorChance,
+      rainbowFloorChance
     });
     setOptResult(result);
-  };
-
-  const handleApplyOptResult = () => {
-    if (!optResult) return;
-    if (window.confirm("Apply the optimized contract levels? This will modify your current contract levels checklist.")) {
-      setContractLevels(optResult.recommendedLevels);
-    }
+    setContractLevels(result.recommendedLevels);
   };
 
   // Group recommendations by contract ID for quick access
@@ -219,13 +245,13 @@ export function ContractList({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      
+
       {/* Contract Optimizer Dashboard */}
       <div className="glass-panel" style={{ padding: '20px', borderRadius: '12px' }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           paddingBottom: '10px',
           marginBottom: '15px'
@@ -233,9 +259,9 @@ export function ContractList({
           <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             📝 Contract Point & Upgrade Optimizer
           </h2>
-          <button 
-            type="button" 
-            className="tab-btn" 
+          <button
+            type="button"
+            className="tab-btn"
             onClick={() => setShowOptimizer(!showOptimizer)}
             style={{ padding: '4px 12px', fontSize: '0.75rem', borderRadius: '15px' }}
           >
@@ -246,25 +272,48 @@ export function ContractList({
         {showOptimizer && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Input fields grid */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
-              gap: '12px' 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '12px'
             }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                  Optimization Target
+                </label>
+                <select
+                  value={contractOptTarget}
+                  onChange={(e) => setContractOptTarget(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  <option value="balanced" style={{ background: '#222' }}>Balanced (SS & Vein)</option>
+                  <option value="ore_sell_price" style={{ background: '#222' }}>Ore Sell Price</option>
+                  <option value="ore_crafting" style={{ background: '#222' }}>Ore & Crafting</option>
+                </select>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                   Contracts Completed
                 </label>
-                <input 
+                <input
                   type="number"
                   value={contractsDone}
                   onChange={(e) => setContractsDone(Math.max(0, parseInt(e.target.value) || 0))}
-                  style={{ 
+                  style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '0.9rem'
                   }}
@@ -275,16 +324,16 @@ export function ContractList({
                 <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                   Extra CP Rewarded
                 </label>
-                <input 
+                <input
                   type="number"
                   value={cpRewarded}
                   onChange={(e) => setCpRewarded(Math.max(0, parseInt(e.target.value) || 0))}
-                  style={{ 
+                  style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '0.9rem'
                   }}
@@ -292,63 +341,115 @@ export function ContractList({
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Target SS Weight (%)
-                </label>
-                <input 
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={ssWeight}
-                  onChange={(e) => {
-                    const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
-                    setSsWeight(val);
-                    setVeinWeight(100 - val);
-                  }}
-                  style={{ 
-                    width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
-                    borderRadius: '6px',
-                    fontSize: '0.9rem'
-                  }}
-                />
-              </div>
+              {contractOptTarget === 'balanced' ? (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                      Target SS Weight (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={ssWeight}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                        setSsWeight(val);
+                        setVeinWeight(100 - val);
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
-                  Target Vein Weight (%)
-                </label>
-                <input 
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={veinWeight}
-                  onChange={(e) => {
-                    const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
-                    setVeinWeight(val);
-                    setSsWeight(100 - val);
-                  }}
-                  style={{ 
-                    width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
-                    borderRadius: '6px',
-                    fontSize: '0.9rem'
-                  }}
-                />
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                      Target Vein Weight (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={veinWeight}
+                      onChange={(e) => {
+                        const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                        setVeinWeight(val);
+                        setSsWeight(100 - val);
+                      }}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                      Golden Floor Chance (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={goldenFloorChance}
+                      onChange={(e) => setGoldenFloorChance(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
+                      Rainbow Floor Chance (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={rainbowFloorChance}
+                      onChange={(e) => setRainbowFloorChance(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                      style={{
+                        width: '100%',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: '#fff',
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
-          </div>
 
             {/* Chances grid */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
               gap: '12px',
               background: 'rgba(255,255,255,0.02)',
               padding: '12px',
@@ -360,16 +461,16 @@ export function ContractList({
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {syncStats && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>+</span>}
-                  <input 
+                  <input
                     type="number"
                     value={extraDoubleChance}
                     onChange={(e) => setExtraDoubleChance(Math.max(0, parseFloat(e.target.value) || 0))}
-                    style={{ 
+                    style={{
                       flex: 1,
-                      background: 'rgba(0,0,0,0.3)', 
-                      border: '1px solid rgba(255,255,255,0.1)', 
-                      color: '#fff', 
-                      padding: '6px 10px', 
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      padding: '6px 10px',
                       borderRadius: '6px',
                       fontSize: '0.85rem'
                     }}
@@ -388,16 +489,16 @@ export function ContractList({
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                   Triple Chance (%)
                 </label>
-                <input 
+                <input
                   type="number"
                   value={tripleChance}
                   onChange={(e) => setTripleChance(Math.max(0, parseFloat(e.target.value) || 0))}
-                  style={{ 
+                  style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '0.85rem'
                   }}
@@ -408,16 +509,16 @@ export function ContractList({
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                   5x Chance (%)
                 </label>
-                <input 
+                <input
                   type="number"
                   value={fivexChance}
                   onChange={(e) => setFivexChance(Math.max(0, parseFloat(e.target.value) || 0))}
-                  style={{ 
+                  style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '0.85rem'
                   }}
@@ -428,16 +529,16 @@ export function ContractList({
                 <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                   10x Chance (%)
                 </label>
-                <input 
+                <input
                   type="number"
                   value={tenxChance}
                   onChange={(e) => setTenxChance(Math.max(0, parseFloat(e.target.value) || 0))}
-                  style={{ 
+                  style={{
                     width: '100%',
-                    background: 'rgba(0,0,0,0.3)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
-                    color: '#fff', 
-                    padding: '6px 10px', 
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    padding: '6px 10px',
                     borderRadius: '6px',
                     fontSize: '0.85rem'
                   }}
@@ -450,16 +551,16 @@ export function ContractList({
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   {syncStats && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>+</span>}
-                  <input 
+                  <input
                     type="number"
                     value={extraCostRed}
                     onChange={(e) => setExtraCostRed(Math.max(0, parseFloat(e.target.value) || 0))}
-                    style={{ 
+                    style={{
                       flex: 1,
-                      background: 'rgba(0,0,0,0.3)', 
-                      border: '1px solid rgba(255,255,255,0.1)', 
-                      color: '#fff', 
-                      padding: '6px 10px', 
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      padding: '6px 10px',
                       borderRadius: '6px',
                       fontSize: '0.85rem'
                     }}
@@ -480,7 +581,7 @@ export function ContractList({
             {/* Checkboxes Row */}
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                <input 
+                <input
                   type="checkbox"
                   className="star-checkbox"
                   checked={syncStats}
@@ -490,7 +591,7 @@ export function ContractList({
               </label>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem' }}>
-                <input 
+                <input
                   type="checkbox"
                   className="star-checkbox"
                   checked={fromScratch}
@@ -501,9 +602,9 @@ export function ContractList({
             </div>
 
             {/* Calculation Outputs Panel */}
-            <div style={{ 
-              background: 'hsla(228, 20%, 6%, 0.4)', 
-              padding: '12px 18px', 
+            <div style={{
+              background: 'hsla(228, 20%, 6%, 0.4)',
+              padding: '12px 18px',
               borderRadius: '8px',
               display: 'flex',
               justifyContent: 'space-between',
@@ -527,18 +628,18 @@ export function ContractList({
 
               <div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Checklist Spent: </span>
-                <span style={{ 
-                  color: totalSpentCP > estimatedTotalCP ? '#ff5555' : 'var(--color-accent-teal)', 
-                  fontWeight: 'bold', 
+                <span style={{
+                  color: totalSpentCP > estimatedTotalCP ? '#ff5555' : 'var(--color-accent-teal)',
+                  fontWeight: 'bold',
                   fontFamily: 'var(--font-mono)',
                   fontSize: '1.1rem'
                 }}>
                   {totalSpentCP.toLocaleString()} CP
                 </span>
                 {totalSpentCP > estimatedTotalCP && (
-                  <span style={{ 
-                    color: '#ff5555', 
-                    marginLeft: '8px', 
+                  <span style={{
+                    color: '#ff5555',
+                    marginLeft: '8px',
                     fontSize: '0.75rem',
                     fontWeight: 'bold',
                     background: 'rgba(255, 85, 85, 0.1)',
@@ -563,17 +664,17 @@ export function ContractList({
 
             {/* Recommendations Output */}
             {optResult && (
-              <div style={{ 
-                background: 'rgba(255, 255, 255, 0.02)', 
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.02)',
                 border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: '8px',
                 padding: '16px',
                 marginTop: '4px'
               }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                   flexWrap: 'wrap',
                   gap: '12px',
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -589,42 +690,63 @@ export function ContractList({
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleApplyOptResult}
-                    className="tab-btn"
-                    style={{ borderColor: 'hsla(145, 75%, 50%, 0.3)', color: 'hsl(145, 70%, 70%)', fontSize: '0.8rem', padding: '6px 14px' }}
+                  <span
+                    style={{ 
+                      fontSize: '0.8rem', 
+                      background: 'hsla(145, 75%, 50%, 0.15)', 
+                      color: 'hsl(145, 70%, 75%)', 
+                      border: '1px solid hsla(145, 75%, 50%, 0.3)',
+                      padding: '4px 12px', 
+                      borderRadius: '15px', 
+                      fontWeight: '600' 
+                    }}
                   >
-                    ✅ Apply Recommended Levels
-                  </button>
+                    ✅ Applied
+                  </span>
                 </div>
 
                 {/* Simulated Changes */}
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                   gap: '12px',
                   marginBottom: '15px'
                 }}>
-                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Super Star Yield / Hr</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '4px 0' }}>
-                      {formatNum(optResult.finalSSYield)}
-                    </div>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--color-accent-emerald)' }}>
-                      {optResult.baseSSYield > 0 ? `+${((optResult.finalSSYield / optResult.baseSSYield - 1) * 100).toFixed(1)}%` : '+0%'} from base
-                    </span>
-                  </div>
+                  {optResult.optTarget === 'balanced' ? (
+                    <>
+                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Super Star Yield / Hr</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '4px 0' }}>
+                          {formatNum(optResult.finalSSYield)}
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-accent-emerald)' }}>
+                          {optResult.baseSSYield > 0 ? `+${((optResult.finalSSYield / optResult.baseSSYield - 1) * 100).toFixed(1)}%` : '+0%'} from base
+                        </span>
+                      </div>
 
-                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Vein Income / Hr</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '4px 0' }}>
-                      {formatNum(optResult.finalVeinYield)}
+                      <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Vein Income / Hr</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '4px 0' }}>
+                          {formatNum(optResult.finalVeinYield)}
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-accent-emerald)' }}>
+                          {optResult.baseVeinYield > 0 ? `+${((optResult.finalVeinYield / optResult.baseVeinYield - 1) * 100).toFixed(1)}%` : '+0%'} from base
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)', gridColumn: 'span 2' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                        {optResult.optTarget === 'ore_sell_price' ? '🏆 Expected Ore Sell Price Value Rate' : '🏆 Expected Ore & Crafting Value Rate'}
+                      </div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: '4px 0' }}>
+                        {formatNum(optResult.finalScore)}
+                      </div>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--color-accent-emerald)' }}>
+                        {optResult.baseScore > 0 ? `+${((optResult.finalScore / optResult.baseScore - 1) * 100).toFixed(1)}%` : '+0%'} from base
+                      </span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--color-accent-emerald)' }}>
-                      {optResult.baseVeinYield > 0 ? `+${((optResult.finalVeinYield / optResult.baseVeinYield - 1) * 100).toFixed(1)}%` : '+0%'} from base
-                    </span>
-                  </div>
+                  )}
                 </div>
 
                 {/* Upgrade Path details */}
@@ -632,14 +754,14 @@ export function ContractList({
                   <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--color-accent-teal)', userSelect: 'none' }}>
                     View Step-by-Step Upgrade Order ({optResult.upgradePath.length} steps)
                   </summary>
-                  <div style={{ 
-                    marginTop: '10px', 
-                    maxHeight: '180px', 
-                    overflowY: 'auto', 
-                    fontSize: '0.8rem', 
-                    fontFamily: 'var(--font-mono)', 
-                    background: 'rgba(0,0,0,0.4)', 
-                    padding: '10px', 
+                  <div style={{
+                    marginTop: '10px',
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    fontSize: '0.8rem',
+                    fontFamily: 'var(--font-mono)',
+                    background: 'rgba(0,0,0,0.4)',
+                    padding: '10px',
                     borderRadius: '6px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -659,13 +781,13 @@ export function ContractList({
       </div>
 
       {/* Controls Row */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        flexWrap: 'wrap', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
         gap: '12px',
-        padding: '0 8px' 
+        padding: '0 8px'
       }}>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
@@ -699,17 +821,17 @@ export function ContractList({
             <label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
               Contract Cap Increase:
             </label>
-            <input 
+            <input
               type="number"
               min="0"
               value={contractUpgradeCapIncrease}
               onChange={(e) => setGlobalStat('contractUpgradeCapIncrease', Math.max(0, parseInt(e.target.value) || 0))}
-              style={{ 
+              style={{
                 width: '60px',
-                background: 'rgba(0,0,0,0.3)', 
-                border: '1px solid rgba(255,255,255,0.1)', 
-                color: '#fff', 
-                padding: '4px 8px', 
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: '#fff',
+                padding: '4px 8px',
                 borderRadius: '4px',
                 fontSize: '0.85rem',
                 textAlign: 'center'
@@ -719,7 +841,7 @@ export function ContractList({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input 
+            <input
               type="checkbox"
               id="hide-maxed-contracts"
               className="star-checkbox"
@@ -762,7 +884,7 @@ export function ContractList({
           if (rec && nextCost > 0) {
             const isVeinContract = ['veinIncomeMultiplier', 'goldenVeinChance'].includes(contract.id);
             const isSuperStarContract = ['superStarSpawnRate', 'supernovaChance'].includes(contract.id);
-            
+
             if (isVeinContract && rec.deltaVein > 0 && currentVein > 0) {
               const effVein = ((rec.deltaVein / currentVein) * 100) / nextCostReduced;
               efficiencyLabel = `+${formatEfficiency(effVein)} Veins/CP`;
@@ -785,30 +907,30 @@ export function ContractList({
           }
 
           return (
-            <div 
-              key={contract.id} 
+            <div
+              key={contract.id}
               className={`glass-panel glass-card star-card ${currentLevel > 0 ? 'active' : ''}`}
-              style={{ 
+              style={{
                 padding: '16px',
                 border: showRecBadge ? '1px solid hsla(145, 75%, 50%, 0.35)' : '1px solid hsla(230, 20%, 30%, 0.2)',
                 boxShadow: showRecBadge ? '0 0 10px hsla(145, 75%, 50%, 0.1)' : 'none'
               }}
             >
               <div className="upgrade-body" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                
+
                 {/* Header */}
                 <div className="star-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div className="star-name" style={{ fontSize: '1rem', lineHeight: '1.2', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                       {contract.name}
                       {showRecBadge && (
-                        <span 
-                          style={{ 
-                            marginLeft: '8px', 
-                            fontSize: '0.7rem', 
-                            background: 'hsla(145, 75%, 50%, 0.15)', 
-                            color: 'hsl(145, 70%, 75%)', 
-                            padding: '1px 6px', 
+                        <span
+                          style={{
+                            marginLeft: '8px',
+                            fontSize: '0.7rem',
+                            background: 'hsla(145, 75%, 50%, 0.15)',
+                            color: 'hsl(145, 70%, 75%)',
+                            padding: '1px 6px',
                             borderRadius: '4px',
                             fontWeight: '600'
                           }}
@@ -818,8 +940,8 @@ export function ContractList({
                         </span>
                       )}
                     </div>
-                    <span style={{ 
-                      fontSize: '0.65rem', 
+                    <span style={{
+                      fontSize: '0.65rem',
                       color: contract.world === 1 ? 'var(--color-accent-teal)' : 'var(--color-accent-violet)',
                       textTransform: 'uppercase',
                       fontWeight: '600',
@@ -835,9 +957,9 @@ export function ContractList({
                   </div>
 
                   {efficiencyLabel && (
-                    <span style={{ 
-                      fontSize: '0.7rem', 
-                      color: 'var(--color-accent-emerald)', 
+                    <span style={{
+                      fontSize: '0.7rem',
+                      color: 'var(--color-accent-emerald)',
                       fontWeight: '600',
                       background: 'hsla(145, 75%, 50%, 0.1)',
                       border: '1px solid hsla(145, 75%, 50%, 0.2)',
@@ -860,10 +982,10 @@ export function ContractList({
                 </div>
 
                 {/* Info block */}
-                <div style={{ 
-                  margin: '8px 0', 
-                  fontSize: '0.85rem', 
-                  display: 'flex', 
+                <div style={{
+                  margin: '8px 0',
+                  fontSize: '0.85rem',
+                  display: 'flex',
                   justifyContent: 'space-between',
                   background: 'hsla(228, 20%, 6%, 0.2)',
                   padding: '6px 10px',
@@ -888,7 +1010,7 @@ export function ContractList({
 
                 {/* Controls & Cost */}
                 <div className="level-controls" style={{ marginTop: '14px', paddingTop: '10px' }}>
-                  <button 
+                  <button
                     type="button"
                     className="lvl-btn"
                     onClick={() => setContractLevel(contract.id, currentLevel - 1)}
@@ -904,7 +1026,7 @@ export function ContractList({
                       Max: {maxLevel}
                     </span>
                   </div>
-                  <button 
+                  <button
                     type="button"
                     className="lvl-btn"
                     onClick={() => setContractLevel(contract.id, currentLevel + 1)}
@@ -916,11 +1038,11 @@ export function ContractList({
 
                 {/* Cost Display */}
                 {currentLevel < maxLevel ? (
-                  <div style={{ 
-                    marginTop: '10px', 
-                    fontSize: '0.75rem', 
-                    color: 'var(--color-text-muted)', 
-                    display: 'flex', 
+                  <div style={{
+                    marginTop: '10px',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-text-muted)',
+                    display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center'
                   }}>
@@ -931,10 +1053,10 @@ export function ContractList({
                     </span>
                   </div>
                 ) : (
-                  <div style={{ 
-                    marginTop: '10px', 
-                    fontSize: '0.75rem', 
-                    color: 'var(--color-accent-emerald)', 
+                  <div style={{
+                    marginTop: '10px',
+                    fontSize: '0.75rem',
+                    color: 'var(--color-accent-emerald)',
                     textAlign: 'right',
                     fontWeight: '600'
                   }}>

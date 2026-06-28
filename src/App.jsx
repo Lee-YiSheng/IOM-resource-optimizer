@@ -185,6 +185,8 @@ function App() {
     localStorage.setItem('iom_contract_levels', JSON.stringify(contractLevels));
   }, [contractLevels]);
 
+
+
   // Setters
   const handleSetStarLevel = (id, lvl) => {
     const star = STARS.find(s => s.id === id);

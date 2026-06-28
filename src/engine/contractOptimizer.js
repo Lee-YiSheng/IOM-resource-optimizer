@@ -75,7 +75,10 @@ export function optimizeContracts({
   ssWeight,
   veinWeight,
   fromScratch = true,
-  currentContractLevels = {}
+  currentContractLevels = {},
+  optTarget = 'balanced',
+  goldenFloorChance = 0,
+  rainbowFloorChance = 0
 }) {
   const reductionFactor = 1 - (costReduction || 0) / 100;
   
@@ -91,6 +94,34 @@ export function optimizeContracts({
   const baseVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: baseStats, cLevels, globalStats }) || 1.0;
 
   const getScore = (levels) => {
+    if (optTarget === 'ore_sell_price') {
+      const stats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: levels });
+      const goldenFloorMulti = stats.activeOtherPerks.goldenFloorMulti || 1.0;
+      const rainbowFloorMulti = stats.activeOtherPerks.rainbowFloorMulti || 0.0;
+      const oreSellPriceMult = 1 + (levels.oreSellPrice || 0) * 0.15;
+      const goldenChance = (goldenFloorChance || 0) / 100;
+      const rainbowChance = (rainbowFloorChance || 0) / 100;
+      
+      const expectedFloorMulti = (1 - goldenChance - rainbowChance) + (goldenChance * goldenFloorMulti) + (rainbowChance * rainbowFloorMulti);
+      return stats.gameSpeed * oreSellPriceMult * expectedFloorMulti;
+    }
+
+    if (optTarget === 'ore_crafting') {
+      const stats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: levels });
+      const goldenFloorMulti = stats.activeOtherPerks.goldenFloorMulti || 1.0;
+      const rainbowFloorMulti = stats.activeOtherPerks.rainbowFloorMulti || 0.0;
+      const goldenChance = (goldenFloorChance || 0) / 100;
+      const rainbowChance = (rainbowFloorChance || 0) / 100;
+      
+      const expectedFloorMulti = (1 - goldenChance - rainbowChance) + (goldenChance * goldenFloorMulti) + (rainbowChance * rainbowFloorMulti);
+      const p3 = (levels.tripleCraftChance || 0) / 100;
+      const p10 = (levels.x10CraftChance || 0) / 100;
+      const expectedCraftMulti = (1 + 2 * p3) * (1 + 9 * p10);
+      
+      return stats.gameSpeed * expectedFloorMulti * expectedCraftMulti;
+    }
+
+    // Default: Balanced (SS & Vein)
     const stats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: levels });
     const veinYield = getVeinIncomeForOptimizer({ veinConfig, stats, cLevels: levels, globalStats });
     
@@ -100,37 +131,106 @@ export function optimizeContracts({
     return ssGain * (ssWeight / 100) + veinGain * (veinWeight / 100);
   };
 
+  const baseScore = getScore(cLevels) || 1.0;
+
   let remainingCP = totalCP;
   let spentCP = 0;
   
   const upgradePath = [];
   
-  // Yield-boosting contracts list + bombRechargeRate
-  const YIELD_BOOSTING_CONTRACTS = [
-    'veinIncomeMultiplier',
-    'goldenFloorMultiplier',
-    'goldenVeinChance',
-    'superStarSpawnRate',
-    'baseGameSpeed',
-    'rainbowFloorMulti',
-    'supernovaChance',
-    'bombRechargeRate'
-  ];
+  // Yield-boosting contracts list based on optimization target
+  const getYieldBoostingContracts = () => {
+    if (optTarget === 'ore_sell_price') {
+      return [
+        'oreSellPrice',
+        'goldenFloorMultiplier',
+        'rainbowFloorMulti',
+        'baseGameSpeed',
+        'bombRechargeRate'
+      ];
+    } else if (optTarget === 'ore_crafting') {
+      return [
+        'tripleCraftChance',
+        'x10CraftChance',
+        'goldenFloorMultiplier',
+        'rainbowFloorMulti',
+        'baseGameSpeed',
+        'bombRechargeRate'
+      ];
+    } else {
+      return [
+        'veinIncomeMultiplier',
+        'goldenFloorMultiplier',
+        'goldenVeinChance',
+        'superStarSpawnRate',
+        'baseGameSpeed',
+        'rainbowFloorMulti',
+        'supernovaChance',
+        'bombRechargeRate'
+      ];
+    }
+  };
+
+  const activeYieldBoosters = getYieldBoostingContracts();
 
   const getContractMaxAllowed = (contract) => {
-    const isYieldBooster = YIELD_BOOSTING_CONTRACTS.includes(contract.id);
+    const isYieldBooster = activeYieldBoosters.includes(contract.id);
     if (isYieldBooster) {
       return contract.maxLevel + (capIncrease || 0);
     }
     
     // Check if there is any yield booster downstream in the entire contract list
     const idx = CONTRACTS.findIndex(c => c.id === contract.id);
-    const hasDownstreamYieldBooster = CONTRACTS.slice(idx + 1).some(c => YIELD_BOOSTING_CONTRACTS.includes(c.id));
+    const hasDownstreamYieldBooster = CONTRACTS.slice(idx + 1).some(c => activeYieldBoosters.includes(c.id));
     
     return hasDownstreamYieldBooster ? 1 : 0;
   };
 
   while (remainingCP > 0) {
+    // 1. Force capping bombRechargeRate first (for both new setups) if it is unlocked
+    const needsBombForce = (optTarget === 'ore_sell_price' || optTarget === 'ore_crafting');
+    let forcedBombChoice = false;
+
+    if (needsBombForce) {
+      const bombContract = CONTRACTS.find(c => c.id === 'bombRechargeRate');
+      const currentBombLvl = cLevels['bombRechargeRate'] || 0;
+      const maxBombLvl = bombContract.maxLevel + (capIncrease || 0);
+
+      if (currentBombLvl < maxBombLvl) {
+        // Check if bombRechargeRate is locked by upstream contracts
+        const bombIdx = CONTRACTS.findIndex(c => c.id === 'bombRechargeRate');
+        let isBombLocked = false;
+        if (bombIdx > 0) {
+          const prev = CONTRACTS[bombIdx - 1];
+          if ((cLevels[prev.id] || 0) < 1) {
+            isBombLocked = true;
+          }
+        }
+
+        if (!isBombLocked) {
+          const rawCost = getContractCost('bombRechargeRate', currentBombLvl + 1);
+          const cost = Math.max(1, Math.round(rawCost * reductionFactor));
+          if (cost <= remainingCP) {
+            cLevels['bombRechargeRate']++;
+            remainingCP -= cost;
+            spentCP += cost;
+            upgradePath.push({
+              contractId: 'bombRechargeRate',
+              name: bombContract.name,
+              world: bombContract.world,
+              fromLevel: currentBombLvl,
+              toLevel: currentBombLvl + 1,
+              cost,
+              remainingCP
+            });
+            forcedBombChoice = true;
+          }
+        }
+      }
+    }
+
+    if (forcedBombChoice) continue;
+
     let bestChoice = null;
     let bestEfficiency = -1;
     let bestCost = 0;
@@ -205,6 +305,7 @@ export function optimizeContracts({
   const finalStats = calculateStats({ starLevels, starUnlocked, upgradeLevels, globalStats, contractLevels: cLevels });
   const finalSSYield = finalStats.superStarYieldPerHour;
   const finalVeinYield = getVeinIncomeForOptimizer({ veinConfig, stats: finalStats, cLevels, globalStats });
+  const finalScore = getScore(cLevels);
 
   return {
     recommendedLevels: cLevels,
@@ -214,6 +315,9 @@ export function optimizeContracts({
     finalSSYield,
     finalVeinYield,
     baseSSYield,
-    baseVeinYield
+    baseVeinYield,
+    finalScore,
+    baseScore,
+    optTarget
   };
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function StatDashboard({ 
   stats, 
@@ -19,8 +19,15 @@ export function StatDashboard({
   const [showOtherPerks, setShowOtherPerks] = useState(false);
   const [showDroneRelic, setShowDroneRelic] = useState(false);
   const [optTarget, setOptTarget] = useState('regular');
-  const [hideLocked, setHideLocked] = useState(false);
+  const [hideLocked, setHideLocked] = useState(() => {
+    const saved = localStorage.getItem('iom_dash_hide_locked');
+    return saved ? saved === 'true' : false;
+  });
   const [contractFilter, setContractFilter] = useState('all');
+
+  useEffect(() => {
+    localStorage.setItem('iom_dash_hide_locked', hideLocked);
+  }, [hideLocked]);
 
   // Format Helper
   const formatNum = (num) => {
@@ -541,6 +548,7 @@ export function StatDashboard({
             onChange={(e) => setGlobalStat('offlineMode', e.target.checked)}
           />
         </div>
+
         <div className="stat-row" style={{ padding: '4px 0' }}>
           <span className="stat-label">2x Star Spawn Buff:</span>
           <input 
