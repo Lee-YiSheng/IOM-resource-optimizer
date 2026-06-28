@@ -78,14 +78,30 @@ export function optimizeContracts({
   currentContractLevels = {},
   optTarget = 'balanced',
   goldenFloorChance = 0,
-  rainbowFloorChance = 0
+  rainbowFloorChance = 0,
+  lockedContracts = {}
 }) {
   const reductionFactor = 1 - (costReduction || 0) / 100;
   
+  // Helper to compute cumulative cost for a contract at a specific level
+  const getContractCumulativeCost = (contractId, level) => {
+    let total = 0;
+    for (let lvl = 1; lvl <= level; lvl++) {
+      const rawCost = getContractCost(contractId, lvl);
+      const reducedCost = Math.max(1, Math.round(rawCost * reductionFactor));
+      total += reducedCost;
+    }
+    return total;
+  };
+
   // 1. Initialize levels
   const cLevels = {};
   CONTRACTS.forEach(c => {
-    cLevels[c.id] = fromScratch ? 0 : (currentContractLevels[c.id] || 0);
+    if (lockedContracts[c.id]) {
+      cLevels[c.id] = currentContractLevels[c.id] || 0;
+    } else {
+      cLevels[c.id] = fromScratch ? 0 : (currentContractLevels[c.id] || 0);
+    }
   });
 
   // Calculate baseline yields (pre-contract or at start levels)
@@ -133,8 +149,18 @@ export function optimizeContracts({
 
   const baseScore = getScore(cLevels) || 1.0;
 
-  let remainingCP = totalCP;
   let spentCP = 0;
+  CONTRACTS.forEach(c => {
+    if (fromScratch) {
+      if (lockedContracts[c.id]) {
+        spentCP += getContractCumulativeCost(c.id, cLevels[c.id]);
+      }
+    } else {
+      spentCP += getContractCumulativeCost(c.id, cLevels[c.id]);
+    }
+  });
+
+  let remainingCP = totalCP - spentCP;
   
   const upgradePath = [];
   
@@ -191,7 +217,7 @@ export function optimizeContracts({
     const needsBombForce = (optTarget === 'ore_sell_price' || optTarget === 'ore_crafting');
     let forcedBombChoice = false;
 
-    if (needsBombForce) {
+    if (needsBombForce && !lockedContracts['bombRechargeRate']) {
       const bombContract = CONTRACTS.find(c => c.id === 'bombRechargeRate');
       const currentBombLvl = cLevels['bombRechargeRate'] || 0;
       const maxBombLvl = bombContract.maxLevel + (capIncrease || 0);
@@ -238,6 +264,8 @@ export function optimizeContracts({
     // Evaluate all contracts
     for (let i = 0; i < CONTRACTS.length; i++) {
       const contract = CONTRACTS[i];
+      if (lockedContracts[contract.id]) continue;
+
       const currentLvl = cLevels[contract.id];
       const maxLvl = getContractMaxAllowed(contract);
 

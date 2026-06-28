@@ -89,7 +89,16 @@ export function ContractList({
     return saved ? parseFloat(saved) : 0;
   });
 
+  const [lockedContracts, setLockedContracts] = useState(() => {
+    const saved = localStorage.getItem('iom_locked_contracts');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [optResult, setOptResult] = useState(null);
+
+  useEffect(() => {
+    localStorage.setItem('iom_locked_contracts', JSON.stringify(lockedContracts));
+  }, [lockedContracts]);
 
   useEffect(() => {
     localStorage.setItem('iom_contracts_hide_maxed', hideMaxed);
@@ -192,7 +201,8 @@ export function ContractList({
       currentContractLevels: contractLevels,
       optTarget: contractOptTarget,
       goldenFloorChance,
-      rainbowFloorChance
+      rainbowFloorChance,
+      lockedContracts
     });
     setOptResult(result);
     setContractLevels(result.recommendedLevels);
@@ -921,12 +931,11 @@ export function ContractList({
                 {/* Header */}
                 <div className="star-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div className="star-name" style={{ fontSize: '1rem', lineHeight: '1.2', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {contract.name}
+                    <div className="star-name" style={{ fontSize: '1rem', lineHeight: '1.2', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
+                      <span>{contract.name}</span>
                       {showRecBadge && (
                         <span
                           style={{
-                            marginLeft: '8px',
                             fontSize: '0.7rem',
                             background: 'hsla(145, 75%, 50%, 0.15)',
                             color: 'hsl(145, 70%, 75%)',
@@ -939,6 +948,21 @@ export function ContractList({
                           → Lvl {recommendedLvl} (Rec)
                         </span>
                       )}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--color-text-secondary)', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '8px', fontWeight: 'normal' }}>
+                        <input 
+                          type="checkbox"
+                          className="star-checkbox"
+                          style={{ margin: 0 }}
+                          checked={!!lockedContracts[contract.id]}
+                          onChange={(e) => {
+                            setLockedContracts(prev => ({
+                              ...prev,
+                              [contract.id]: e.target.checked
+                            }));
+                          }}
+                        />
+                        Lock
+                      </label>
                     </div>
                     <span style={{
                       fontSize: '0.65rem',
