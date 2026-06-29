@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { STARS } from './data/stars';
 import { starFloors } from './data/starFloors';
 import { UPGRADES } from './data/upgrades';
@@ -11,6 +11,7 @@ import { UpgradeList } from './components/UpgradeList';
 import { ContractList } from './components/ContractList';
 import { StatDashboard } from './components/StatDashboard';
 import { VeinCalculator } from './components/VeinCalculator';
+import { PlatOptimizer } from './components/PlatOptimizer';
 
 // Helper to load state from localStorage or use defaults
 const getInitialState = (key, defaults) => {
@@ -29,6 +30,9 @@ const getInitialState = (key, defaults) => {
 
 function App() {
   const [activeTab, setActiveTab] = useState('stars');
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
 
   // Star Unlock Checklist State (Default first few unlocked to show usage)
   const defaultUnlocks = STARS.reduce((acc, star) => {
@@ -396,50 +400,37 @@ function App() {
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'stars' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('stars');
-              setTimeout(() => {
-                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 50);
-            }}
+            onClick={() => handleTabChange('stars')}
           >
             ✨ Constellation Stars
           </button>
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'upgrades' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('upgrades');
-              setTimeout(() => {
-                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 50);
-            }}
+            onClick={() => handleTabChange('upgrades')}
           >
             ⚙️ Upgrades Tab
           </button>
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'contracts' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('contracts');
-              setTimeout(() => {
-                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 50);
-            }}
+            onClick={() => handleTabChange('contracts')}
           >
             📜 Contracts
           </button>
           <button 
             type="button"
             className={`tab-btn ${activeTab === 'veins' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('veins');
-              setTimeout(() => {
-                document.getElementById('tab-content-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 50);
-            }}
+            onClick={() => handleTabChange('veins')}
           >
             ⛏️ Vein Calculator
+          </button>
+          <button 
+            type="button"
+            className={`tab-btn ${activeTab === 'plat' ? 'active' : ''}`}
+            onClick={() => handleTabChange('plat')}
+          >
+            🪙 Plat Optimizer
           </button>
 
           <input 
@@ -555,6 +546,13 @@ function App() {
               setVeinConfig={setVeinConfig}
               floorsPerHour={calculatedStats.floorsPerHour}
               contractLevels={contractLevels}
+            />
+          )}
+          {activeTab === 'plat' && (
+            <PlatOptimizer
+              globalStats={globalStats}
+              veinConfig={veinConfig}
+              setGlobalStat={handleSetGlobalStat}
             />
           )}
         </div>
