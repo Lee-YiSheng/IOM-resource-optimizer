@@ -1,147 +1,118 @@
-import { ORES, FLOOR_ORES, normalizeOreName } from '../data/ores';
-import { STATUES } from '../data/statues';
-import { VEINS } from '../data/veins';
+import { ORES, FLOOR_ORES, normalizeOreName } from '../data/ores.js';
+import { STATUES } from '../data/statues.js';
+import { VEINS } from '../data/veins.js';
+import { calculateVeinIncome } from './veinCalculator.js';
+import { DroneEngine } from './DroneEngine.js';
+import { FloorMultiplierCalculator } from './FloorMultiplierCalculator.js';
+import { BombCalculator } from './BombCalculator.js';
+import { BarCraftCalculator } from './BarCraftCalculator.js';
 
 /**
- * Plat Optimizer Calculator Engine.
+ * Plat Optimizer Calculator Engine (OOP Refactored).
  * Calculates optimal floors, hourly rates, and times to platinize all 9 statues.
  */
-
 export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = true) {
   // --- 1. Basic Speed and Offline Multipliers ---
   const gameSpeed = platStats.gameSpeedOverride ? (platStats.gameSpeed || 1.0) : (globalStats.gameSpeed || 1.0);
   const offlineMult = globalStats.offlineMode ? 0.85 : 1.0;
   
   // Floors per hour from global calculation
-  const floorsPerHour = 48 * gameSpeed * 60 * (globalStats.offlineMode ? 0.85 : 1.0);
+  const floorsPerHour = 48 * gameSpeed * 60 * offlineMult;
 
-  // --- 2. Ore Yield Multipliers ---
-  const oreIncomeMulti = platStats.oreIncomeMulti || 1.0;
-  const oreCardMulti = platStats.oreCardMulti !== undefined ? platStats.oreCardMulti : 2.0;
-  const barCardMulti = platStats.barCardMulti !== undefined ? platStats.barCardMulti : 2.0;
-  const tripleOreChance = platStats.tripleOreChance || 0;
-  const expectedTripleOreMulti = 1 + 2 * (Math.min(100, tripleOreChance) / 100);
+  // --- 2. Instantiate OOP Calculators & Engines ---
+  const droneEngine = new DroneEngine({
+    voidDroneEquipped: !!platStats.voidDroneEquipped,
+    voidDroneLevel: platStats.voidDroneLevel || 0,
+    voidDroneGrade: platStats.voidDroneGrade !== undefined ? platStats.voidDroneGrade : 15,
+    voidPortalChance: platStats.voidPortalChance,
+    goldenVoidPortalChance: platStats.goldenVoidPortalChance || 0,
+    rainbowVoidPortalChance: platStats.rainbowVoidPortalChance || 0,
+    baseVoidPortalMulti: platStats.baseVoidPortalMulti || 1.0,
+    goldenVoidMulti: platStats.goldenVoidMulti || 1.0,
+    rainbowVoidMulti: platStats.rainbowVoidMulti || 1.0,
 
-  // Floor type expected multipliers
-  const pGoldenFloor = (platStats.goldenFloorChance || 0) / 100;
-  const pRainbowFloor = (platStats.rainbowFloorChance || 0) / 100;
-  const pGalacticFloor = (platStats.galacticFloorChance || 0) / 100;
-  const pPrismaticFloor = (platStats.prismaticFloorChance || 0) / 100;
+    chainDroneEquipped: !!platStats.chainDroneEquipped,
+    chainDroneGrade: platStats.chainDroneGrade || 0,
 
-  const chainDroneEquipped = !!platStats.chainDroneEquipped;
-  const chainDroneGrade = platStats.chainDroneGrade || 0;
-  const chainDroneMulti = chainDroneEquipped ? (1.50 + chainDroneGrade * 0.10) : 1.0;
-  const mGoldenFloor = (platStats.goldenFloorMulti || 1.0) * chainDroneMulti;
-  const mRainbowFloor = platStats.rainbowFloorMulti || 1.0;
-  const mGalacticFloor = platStats.galacticFloorMulti || 1.0;
-  const mPrismaticFloor = platStats.prismaticFloorMulti || 1.0;
+    veinDroneFueled: !!veinConfig.veinDroneFueled,
+    veinDroneLevel: veinConfig.veinDroneLevel || 0,
+    veinDroneGrade: veinConfig.veinDroneGrade || 0
+  });
 
-  const prismaticLayer = (1 - pPrismaticFloor) * 1 + pPrismaticFloor * mPrismaticFloor;
-  const galacticLayer = (1 - pGalacticFloor) * 1 + pGalacticFloor * mGalacticFloor * prismaticLayer;
-  const rainbowLayer = (1 - pRainbowFloor) * 1 + pRainbowFloor * mRainbowFloor * galacticLayer;
-  const expectedFloorMulti = (1 - pGoldenFloor) * 1 + pGoldenFloor * mGoldenFloor * rainbowLayer;
+  const floorCalc = new FloorMultiplierCalculator({
+    goldenFloorChance: platStats.goldenFloorChance || 0,
+    rainbowFloorChance: platStats.rainbowFloorChance || 0,
+    galacticFloorChance: platStats.galacticFloorChance || 0,
+    prismaticFloorChance: platStats.prismaticFloorChance || 0,
+    goldenFloorMulti: platStats.goldenFloorMulti || 1.0,
+    rainbowFloorMulti: platStats.rainbowFloorMulti || 1.0,
+    galacticFloorMulti: platStats.galacticFloorMulti || 1.0,
+    prismaticFloorMulti: platStats.prismaticFloorMulti || 1.0,
+    chainDroneMulti: droneEngine.getChainDroneMulti()
+  });
 
-  // Golden Ore expected multipliers
-  const pGoldenOre = (platStats.goldenOreChance || 0) / 100;
-  const pBopGoldOre = (platStats.bopGoldOreChance || 0) / 100;
-  const totalGoldenOreChance = Math.min(1.0, pGoldenOre + pBopGoldOre);
-  const mGoldenOre = platStats.goldenOreMulti || 1.0;
-  const expectedGoldenOreMulti = (1 - totalGoldenOreChance) * 1.0 + totalGoldenOreChance * mGoldenOre;
+  const bombCalc = new BombCalculator({
+    bopMulti: platStats.bopMulti || 1.0,
+    transmuterMulti: platStats.transmuterMulti || 1.0,
+    transmuterBopMarkChance: platStats.transmuterBopMarkChance || 0,
+    goldenOreChance: platStats.goldenOreChance || 0,
+    bopGoldOreChance: platStats.bopGoldOreChance || 0,
+    goldenOreMulti: platStats.goldenOreMulti || 1.0,
+    tripleOreChance: platStats.tripleOreChance || 0,
+    oreIncomeMulti: platStats.oreIncomeMulti || 1.0,
+    oreCardMulti: platStats.oreCardMulti !== undefined ? platStats.oreCardMulti : 2.0
+  });
 
-  // Bomb of Plenty & Transmuter expected multipliers
-  const bopMulti = platStats.bopMulti || 1.0;
-  const transmuterMulti = platStats.transmuterMulti || 1.0;
-  const transmuterBopMarkChance = (platStats.transmuterBopMarkChance || 0) / 100;
-  const expectedBombMulti = bopMulti * (transmuterBopMarkChance * transmuterMulti + (1 - transmuterBopMarkChance) * 1.0);
+  const barCalc = new BarCraftCalculator({
+    barOutputMulti: platStats.barOutputMulti || 1.0,
+    freeCraftChance: platStats.freeCraftChance || 0,
+    doubleCraftChance: platStats.doubleCraftChance || 0,
+    tripleCraftChance: platStats.tripleCraftChance || 0,
+    craft5xChance: platStats.craft5xChance || 0,
+    craft10xChance: platStats.craft10xChance || 0,
+    craft20xChance: platStats.craft20xChance || 0,
+    craft100xChance: platStats.craft100xChance || 0,
+    barCraftCost: platStats.barCraftCost || 1.0,
+    barCardMulti: platStats.barCardMulti !== undefined ? platStats.barCardMulti : 2.0
+  });
 
-  // --- 3. Void Drone expected portal multiplier ---
-  const voidDroneEquipped = !!platStats.voidDroneEquipped;
-  
-  // Base Void Portal Chance is 10% + 2% per level (0-15)
-  const voidDroneLevel = platStats.voidDroneLevel || 0;
-  const computedVoidPortalChance = 10 + 2 * voidDroneLevel;
-  // If equipped, use manual override or computed chance
-  const pVoidPortal = (voidDroneEquipped ? (platStats.voidPortalChance !== undefined ? platStats.voidPortalChance : computedVoidPortalChance) : 0) / 100;
+  // --- 3. Delegate Vein Calculation to veinCalculator ---
+  const veinStats = calculateVeinIncome({
+    veinSpawnRateMulti: veinConfig.veinSpawnRateMulti || 1.0,
+    veinIncomeMulti: veinConfig.veinIncomeMulti || 1.0,
+    goldenVeinChance: veinConfig.goldenVeinChance || 0,
+    goldenVeinMulti: veinConfig.goldenVeinMulti || 1.0,
+    rainbowVeinChance: veinConfig.rainbowVeinChance || 0,
+    rainbowVeinMulti: veinConfig.rainbowVeinMulti || 1.0,
+    gleamingVeinChance: veinConfig.gleamingVeinChance || 0,
+    gleamingVeinMulti: veinConfig.gleamingVeinMulti || 1.0,
+    veinResearch2x: !!veinConfig.veinResearch2x,
+    oresPerFloor: veinConfig.oresPerFloor || 12,
+    veinDroneFueled: droneEngine.isVeinDroneFueled(),
+    veinDroneLevel: veinConfig.veinDroneLevel || 0,
+    veinDroneGrade: veinConfig.veinDroneGrade || 0,
+    veinmorpherBomb: false,
+    floorsPerHour: floorsPerHour,
+    cardMultiplier: globalStats.cardMultiplier || 1.0,
+    contractLevels: { veinIncomeMultiplier: globalStats.contractLevel || 0 },
+    offlineMode: false
+  });
 
-  const pGoldenVoid = (platStats.goldenVoidPortalChance || 0) / 100;
-  const pRainbowVoid = (platStats.rainbowVoidPortalChance || 0) / 100;
+  // --- 4. Expected Ore Yield Map & Vein Yield for all floors ---
+  const floorYields = [];
+  const oresPerFloor = veinConfig.oresPerFloor || 12;
 
-  const mBaseVoid = platStats.baseVoidPortalMulti || 1.0;
-  const voidDroneGrade = platStats.voidDroneGrade !== undefined ? platStats.voidDroneGrade : 15;
-  const mVoidDrone = 3.0 + voidDroneGrade * 1.0;
-  const mGoldenVoid = platStats.goldenVoidMulti || 1.0;
-  const mRainbowVoid = platStats.rainbowVoidMulti || 1.0;
+  const expectedFloorMulti = floorCalc.getExpectedFloorMulti();
+  const voidDroneEquipped = droneEngine.isVoidDroneEquipped();
+  const pVoidPortal = droneEngine.getVoidPortalChance();
+  const expectedPortalMulti = droneEngine.getExpectedPortalMulti();
+  const oreMultiplierChain = bombCalc.getOreMultiplierChain(expectedFloorMulti);
 
-  const vBase = mBaseVoid * mVoidDrone;
-  const vGolden = vBase * mGoldenVoid;
-  const vRainbow = vGolden * mRainbowVoid;
-
-  const expectedPortalMulti = (1 - pGoldenVoid) * vBase + pGoldenVoid * ((1 - pRainbowVoid) * vGolden + pRainbowVoid * vRainbow);
-
-  // --- 4. Crafting / Bar expected yields ---
-  const barOutputMulti = platStats.barOutputMulti || 1.0;
-  const freeCraftChance = (platStats.freeCraftChance || 0) / 100;
-  const doubleCraftChance = (platStats.doubleCraftChance || 0) / 100;
-  const tripleCraftChance = (platStats.tripleCraftChance || 0) / 100;
-  const craft5xChance = (platStats.craft5xChance || 0) / 100;
-  const craft10xChance = (platStats.craft10xChance || 0) / 100;
-  const craft20xChance = (platStats.craft20xChance || 0) / 100;
-  const craft100xChance = (platStats.craft100xChance || 0) / 100;
-  const barCraftCost = platStats.barCraftCost || 1.0;
-
-  const expectedBarsPerCraft = barOutputMulti *
-    (1 + 1 * doubleCraftChance) *
-    (1 + 2 * tripleCraftChance) *
-    (1 + 4 * craft5xChance) *
-    (1 + 9 * craft10xChance) *
-    (1 + 19 * craft20xChance) *
-    (1 + 99 * craft100xChance);
-
-  // --- 5. Vein Yield Multipliers (From global stats & veinConfig) ---
-  const contractVeinIncomeMult = 1 + (globalStats.contractLevel || 0) * 0.04;
-  const effectiveVeinIncomeMulti = (veinConfig.veinIncomeMulti || 1.0) * contractVeinIncomeMult;
-  const cardMultiplier = globalStats.cardMultiplier || 1.0;
-  
-  const veinSpawnRateMulti = veinConfig.veinSpawnRateMulti || 1.0;
-  const goldenVeinChance = veinConfig.goldenVeinChance || 0;
-  const goldenVeinMulti = veinConfig.goldenVeinMulti || 1.0;
-  const rainbowVeinChance = veinConfig.rainbowVeinChance || 0;
-  const rainbowVeinMulti = veinConfig.rainbowVeinMulti || 1.0;
-  const gleamingVeinChance = veinConfig.gleamingVeinChance || 0;
-  const gleamingVeinMulti = veinConfig.gleamingVeinMulti || 1.0;
-
-  // Vein Drone effects
-  const veinDroneSpawnMulti = veinConfig.veinDroneFueled
-    ? (1 + 0.10 + (veinConfig.veinDroneLevel || 0) * 0.02)
-    : 1.0;
-  const veinDroneGoldenMulti = veinConfig.veinDroneFueled
-    ? (1 + 0.50 + (veinConfig.veinDroneGrade || 0) * 0.10)
-    : 1.0;
-  const researchMulti = veinConfig.veinResearch2x ? 2.0 : 1.0;
-  const effectiveVeinSpawnRate = veinSpawnRateMulti * veinDroneSpawnMulti * researchMulti;
-
-  const expectedVeinsPerFloorBase = (rarity, ores) => {
-    const spawnProb = Math.min(1, effectiveVeinSpawnRate / (rarity * ores));
-    return ores * spawnProb;
-  };
-
-  const expectedVeinMultiplier = (() => {
-    const effectiveGoldenMulti = goldenVeinMulti * veinDroneGoldenMulti;
-    const goldenRainbowLayer = (1 - goldenVeinChance) * 1 + goldenVeinChance * effectiveGoldenMulti * ((1 - rainbowVeinChance) + rainbowVeinChance * rainbowVeinMulti);
-    const gleamingLayer = (1 - gleamingVeinChance) * 1 + gleamingVeinChance * gleamingVeinMulti;
-    return goldenRainbowLayer * gleamingLayer * effectiveVeinIncomeMulti * cardMultiplier;
-  })();
-
-  // --- Helper to get vein info on a floor ---
+  // Helper to get vein info on a floor
   function getVeinInfo(floorNum) {
     const vein = VEINS.find(v => floorNum >= v.floors[0] && floorNum <= v.floors[1]);
     return vein || { name: "Unknown Vein", rarity: 50 };
   }
-
-  // --- Expected Ore Yield Map & Vein Yield for all floors ---
-  // We precalculate the hourly yield of all ores and veins on each floor 1 to 60.
-  const floorYields = [];
-  const oresPerFloor = veinConfig.oresPerFloor || 12;
 
   for (let f = 1; f <= 60; f++) {
     const floorInfo = FLOOR_ORES.find(fo => fo.floor === f);
@@ -153,12 +124,11 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
     const primaryIdx = ORES.findIndex(o => o.name === primaryName) + 1; // 1-based index
     const secondaryIdx = ORES.findIndex(o => o.name === secondaryName) + 1;
 
-    // Vein yield calculation
+    // Vein yield calculation delegated to veinCalculator
     const veinInfo = getVeinInfo(f);
-    const rawVeinsPerFloor = expectedVeinsPerFloorBase(veinInfo.rarity, oresPerFloor);
-    // If Void Drone is equipped, it multiplies vein income by expectedPortalMulti
+    const baseVeinsPerHour = veinStats.incomeByVeinNameFullTime[veinInfo.name] || 0;
     const veinDronePortalMulti = voidDroneEquipped ? expectedPortalMulti : 1.0;
-    const veinsPerHour = floorsPerHour * rawVeinsPerFloor * expectedVeinMultiplier * veinDronePortalMulti;
+    const veinsPerHour = baseVeinsPerHour * veinDronePortalMulti;
 
     // Calculate yield for all 38 possible required ores
     const oresPerHourMap = {};
@@ -202,18 +172,12 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
         }
       }
 
-      // Calculate barsPerOre dynamically using oreObj.craftCostBase
-      const baseCost = oreObj.craftCostBase;
-      const trueCraftCost = Math.max(1, Math.round(baseCost * barCraftCost));
-      const effectiveOresPerCraft = trueCraftCost * Math.max(0.001, 1 - freeCraftChance);
-      const barsPerOre = expectedBarsPerCraft / effectiveOresPerCraft;
-
       // Multiply by all general multipliers
       // Bomb of Plenty clears the whole floor and benefits from Triple Ore Chance
-      const oresPerHour = floorsPerHour * oresPerFloor * expectedSpawnsPerNode * expectedFloorMulti * expectedGoldenOreMulti * expectedBombMulti * oreIncomeMulti * expectedTripleOreMulti * oreCardMulti;
-      const barsPerHour = oresPerHour * barsPerOre * barCardMulti;
+      const oresPerHour = floorsPerHour * oresPerFloor * expectedSpawnsPerNode * oreMultiplierChain;
+      const barsPerHour = barCalc.getBarsPerHour(oresPerHour, oreObj.craftCostBase);
 
-       oresPerHourMap[oreName] = oresPerHour;
+      oresPerHourMap[oreName] = oresPerHour;
       barsPerHourMap[oreName] = barsPerHour;
     }
 
@@ -226,7 +190,7 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
     });
   }
 
-  // --- 6. Optimization Simulation ---
+  // --- 5. Optimization Simulation ---
   // Run farming simulation to calculate times and path
   function runSimulation(targetStatues) {
     // Clone requirements
@@ -248,10 +212,6 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
     let totalHours = 0;
     const path = [];
     const statueCompletionTimes = Array(9).fill(0);
-
-    // Track original requirements for statue completion detection
-    const originalOres = targetStatues.map(s => ({ ...s.ores }));
-    const originalVeins = targetStatues.map(s => s.veinAmount);
 
     let iterations = 0;
     while (true) {
@@ -280,7 +240,6 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
       const T_name = ORES[highestNeededOreIdx - 1].name;
 
       // Find the best floor (<= 60) for T_name.
-      // The best floor is the floor where T_name has the highest spawn chance in FLOOR_ORES.
       let bestFloor = 60;
       let highestSpawnChance = 0;
       
@@ -379,7 +338,7 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
   // Run the base simulation
   const baseResult = runSimulation(STATUES);
 
-  // --- 7. Simulations for Incremental Gains ---
+  // --- 6. Simulations for Incremental Gains ---
   const simulations = {};
 
   if (runSims) {
