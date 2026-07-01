@@ -793,7 +793,7 @@ export function PlatOptimizer({ globalStats, veinConfig, setGlobalStat }) {
             {result.simulations && Object.entries(result.simulations).map(([key, sim]) => {
               const stateKey = `simIncr_${key}`;
               const val = platStats[stateKey] !== undefined ? platStats[stateKey] : 1.0;
-              const stepVal = key === 'goldenFloorMulti' ? 0.5 : (key === 'chainDroneGrade' || key === 'voidDroneGrade' ? 1 : (key === 'gameSpeed' ? 0.01 : 0.1));
+              const stepVal = (key === 'goldenFloorMulti' || key === 'rainbowFloorMulti') ? 0.5 : (key === 'chainDroneGrade' || key === 'voidDroneGrade' ? 1 : (key === 'gameSpeed' ? 0.01 : 0.1));
 
               return (
                 <div key={key} style={{
@@ -898,6 +898,7 @@ const defaultPlatStats = {
   simIncr_chainDroneGrade: 1,
   simIncr_voidDroneGrade: 1,
   simIncr_gameSpeed: 0.05,
+  simIncr_rainbowFloorMulti: 1.0,
   voidPortalChance: 40.0,
   goldenVoidPortalChance: 10.50,
   rainbowVoidPortalChance: 5.00,

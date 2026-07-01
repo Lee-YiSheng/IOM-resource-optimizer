@@ -395,7 +395,8 @@ export function calculatePlatTime(globalStats, veinConfig, platStats, runSims = 
       { key: "tripleCraftChance", nameKey: "Triple Craft Chance", addition: platStats.simIncr_tripleCraftChance !== undefined ? platStats.simIncr_tripleCraftChance : 1.0, suffix: "%" },
       { key: "chainDroneGrade", nameKey: "Chain Drone Grade", addition: platStats.simIncr_chainDroneGrade !== undefined ? platStats.simIncr_chainDroneGrade : 1.0, suffix: " Grade" },
       { key: "voidDroneGrade", nameKey: "Void Drone Grade", addition: platStats.simIncr_voidDroneGrade !== undefined ? platStats.simIncr_voidDroneGrade : 1.0, suffix: " Grade" },
-      { key: "gameSpeed", nameKey: "Game Speed", addition: platStats.simIncr_gameSpeed !== undefined ? platStats.simIncr_gameSpeed : 0.05, suffix: "x" }
+      { key: "gameSpeed", nameKey: "Game Speed", addition: platStats.simIncr_gameSpeed !== undefined ? platStats.simIncr_gameSpeed : 0.05, suffix: "x" },
+      { key: "rainbowFloorMulti", nameKey: "Rainbow Floor Multi", addition: platStats.simIncr_rainbowFloorMulti !== undefined ? platStats.simIncr_rainbowFloorMulti : 1.0, suffix: "x" }
     ];
 
     statsToSimulate.forEach(sim => {
